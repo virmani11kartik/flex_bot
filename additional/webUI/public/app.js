@@ -14,7 +14,7 @@ const NO_FACE_TIMEOUT = 180000;    // 180 seconds - Return to home when face not
 // Face Detection Settings
 const FACE_DETECTION_CONFIG = {
   minDetectionConfidence: 0.7,    // Minimum confidence for face detection (0-1)
-  gazeThreshold: 0.3,             // How centered the face needs to be (0-1, higher = stricter)
+  gazeThreshold: 0.4,             // How centered the face needs to be (0-1, higher = stricter)
   requiredGazeDuration: 500,     // Time in ms person must look before engaging (2 seconds)
   faceSizeThreshold: 0.12,        // Minimum face size to prevent distant detections (0-1)
   detectionInterval: 100,         // Time between detection checks in ms
@@ -601,7 +601,7 @@ function initializeBookReturns() {
   
   // Create instance
   bookReturnsManager = new BookReturnsManager({
-    maxBooksBeforeSort: 5, // Trigger sorting after 10 books
+    maxBooksBeforeSort: 10, // Trigger sorting after 10 books
   });
   
 
