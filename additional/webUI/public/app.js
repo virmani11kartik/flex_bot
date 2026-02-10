@@ -601,7 +601,7 @@ function initializeBookReturns() {
   
   // Create instance
   bookReturnsManager = new BookReturnsManager({
-    maxBooksBeforeSort: 10, // Trigger sorting after 10 books
+    maxBooksBeforeSort: 5, // Trigger sorting after 10 books
   });
   
 
