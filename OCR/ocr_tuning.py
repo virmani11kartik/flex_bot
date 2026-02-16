@@ -6,6 +6,13 @@ import numpy as np
 import re
 from difflib import SequenceMatcher
 
+
+TARGET_FPS = 30.0     # pace preview + debug recording (match capture target)
+OCR_HZ = 3.0          # run OCR at this rate (independent of TARGET_FPS)
+DRAIN_FRAMES = 0      # IMPORTANT: set to 0 (draining causes time-lapse speed-up)
+PREVIEW_MAX_W = 1280  # preview window scale only (recording stays full-res)
+
+
 # ----------------------------
 # Configuration
 # ----------------------------
@@ -43,6 +50,38 @@ DRAIN_FRAMES = 2
 
 # Display scaling: do NOT shrink recorded video, only shrink the preview window
 PREVIEW_MAX_W = 1280
+
+
+# HELPERS
+
+def open_webcam_imx(device_index=0):
+    cap = open_webcam_imx(0)
+    # cap = cv2.VideoCapture(device_index, cv2.CAP_V4L2)
+    # if not cap.isOpened():
+    #     return cap
+
+    # Reduce buffering (prevents “fast-forward” feel due to backlog draining)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+    # Force MJPEG (often fixes distortion/tearing and makes high-res USB cams stable)
+    cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+
+    # Start with a stable high-res mode; move to 4K only after this is solid
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+
+    return cap
+
+
+def print_capture_info(cap):
+    w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
+    fourcc_str = "".join([chr((fourcc >> 8*i) & 0xFF) for i in range(4)])
+    print(f"[cam] w={w:.0f} h={h:.0f} fps={fps:.2f} fourcc={fourcc_str}")
+
 
 # ----------------------------
 # OCR (EasyOCR)
@@ -404,6 +443,8 @@ def main():
     if not cap.isOpened():
         print("Error: Could not open video source")
         return
+    
+    print_capture_info(cap=cap)
 
     # What did we actually get?
     actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
@@ -435,17 +476,31 @@ def main():
     writer = None
     writer_inited = False
 
-    # ---- Metronome pacing (key fix) ----
-    period = 1.0 / pace_fps
+    # # ---- Metronome pacing (key fix) ----
+    # period = 1.0 / pace_fps
+    # t_next = time.perf_counter()
+
+    # # OCR throttle
+    # ocr_period = 1.0 / max(0.1, float(OCR_HZ))
+    # next_ocr_time = time.perf_counter()
+    period = 1.0 / float(TARGET_FPS)
     t_next = time.perf_counter()
 
-    # OCR throttle
     ocr_period = 1.0 / max(0.1, float(OCR_HZ))
     next_ocr_time = time.perf_counter()
+
+
+# 6) At the TOP of your while True loo
+
 
     try:
         while True:
             # ---- pacing at TOP of loop ----
+            # now = time.perf_counter()
+            # if now < t_next:
+            #     time.sleep(t_next - now)
+            # t_next += period
+
             now = time.perf_counter()
             if now < t_next:
                 time.sleep(t_next - now)
@@ -464,6 +519,9 @@ def main():
 
             frame_count += 1
             current_time = time.time()
+
+            if frame_count == 1:
+                print("[frame] shape:", frame.shape)  # (H, W, C)
 
             # OCR throttled by time (stable on GPU)
             if time.perf_counter() >= next_ocr_time:
