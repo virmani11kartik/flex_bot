@@ -1,57 +1,15 @@
 {
-  "image_file": "shelf_video_2.MOV",
-  "num_books": 4,
+  "image_file": "webcam",
+  "num_books": 1,
   "books": [
     {
-      "call_number": "Q 325.5 M873 2023",
-      "confidence": 0.8834144712115525,
+      "call_number": "AI",
+      "confidence": 0.8881700932769319,
       "text_components": [
-        "325.5",
-        "M873",
-        "2023"
+        "AI"
       ],
-      "detection_count": 18,
+      "detection_count": 4,
       "position": 1
-    },
-    {
-      "call_number": "QC 174.12 H39 2001",
-      "confidence": 0.8722024277454565,
-      "text_components": [
-        "QC",
-        "174.12",
-        "H39",
-        "2001"
-      ],
-      "detection_count": 12,
-      "position": 2
-    },
-    {
-      "call_number": "MLAAN PHYS QC 794.6 S85 B58 2013",
-      "confidence": 0.8202256447860106,
-      "text_components": [
-        "MATH",
-        "PHYS",
-        "QC",
-        "794.6",
-        "S85",
-        "B58",
-        "2013"
-      ],
-      "detection_count": 12,
-      "position": 3
-    },
-    {
-      "call_number": "ENGR TJ 211 T575 2005",
-      "confidence": 0.8310765574609794,
-      "text_components": [
-        "ENGR",
-        "TJ",
-        "211",
-        "T575",
-        "205"
-      ],
-      "detection_count": 7,
-      "position": 4
     }
   ]
 }

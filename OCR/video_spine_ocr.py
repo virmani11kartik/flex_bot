@@ -26,7 +26,7 @@ CONFIDENCE_THRESHOLD = 0.75  # Lowered to catch more detections
 SIMILARITY_THRESHOLD = 0.85
 
 # Headless / display handling
-HEADLESS = False
+HEADLESS = True
 SAVE_DEBUG_VIDEO = True
 DEBUG_VIDEO_PATH = os.path.join(BASE_DIR, "debug_overlay.mp4")
 DEBUG_VIDEO_FPS = 30
