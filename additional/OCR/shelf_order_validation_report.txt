@@ -1,0 +1,50 @@
+
+======================================================================
+LIBRARY OF CONGRESS CALL NUMBER ORDER VALIDATION REPORT
+======================================================================
+
+Image: sample_2.jpg
+Total Books: 4
+
+----------------------------------------------------------------------
+CURRENT SHELF ORDER (Left to Right):
+----------------------------------------------------------------------
+1. MATH PHYS QC 794.6 S85 B58 2013
+2. QC 174.12 H39 2001
+3. Q 325.5 M873 2023
+4. ENGR TJ 211 T575 2005
+
+----------------------------------------------------------------------
+✗ RESULT: Books are NOT in correct order
+   Found 2 ordering issue(s)
+----------------------------------------------------------------------
+
+ISSUES DETECTED:
+
+  Issue 1:
+    Book at position 1 (MATH PHYS QC 794.6 S85 B58 2013) should come AFTER position 2 (QC 174.12 H39 2001)
+    Position 1: MATH PHYS QC 794.6 S85 B58 2013
+    Position 2: QC 174.12 H39 2001
+
+  Issue 2:
+    Book at position 2 (QC 174.12 H39 2001) should come AFTER position 3 (Q 325.5 M873 2023)
+    Position 2: QC 174.12 H39 2001
+    Position 3: Q 325.5 M873 2023
+
+----------------------------------------------------------------------
+RECOMMENDED SWAPS TO FIX ORDER:
+----------------------------------------------------------------------
+
+Swap 1:
+  Swap position 3 (Q 325.5 M873 2023)
+  with position 1 (MATH PHYS QC 794.6 S85 B58 2013)
+
+----------------------------------------------------------------------
+CORRECT ORDER (Library of Congress):
+----------------------------------------------------------------------
+1. Q 325.5 M873 2023 ✗ (currently at position 3)
+2. QC 174.12 H39 2001 ✓
+3. MATH PHYS QC 794.6 S85 B58 2013 ✗ (currently at position 1)
+4. ENGR TJ 211 T575 2005 ✓
+
+======================================================================
