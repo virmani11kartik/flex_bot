@@ -17,8 +17,13 @@ OUTPUT_JSON = os.path.join(BASE_DIR, "shelf_viewer", "shelf_order.json")
 UPDATE_INTERVAL = 1.0  # seconds
 
 # ROI Configuration (normalized)
-ROI_X0, ROI_Y0 = 0.10, 0.42
-ROI_X1, ROI_Y1 = 0.95, 0.77
+#ROI_X0, ROI_Y0 = 0.10, 0.25
+#ROI_X1, ROI_Y1 = 0.95, 0.70
+
+ROI_X0, ROI_Y0 = 0.10, 0.25
+ROI_X1, ROI_Y1 = 0.25, 0.70
+
+
 
 # Detection stability settings
 MIN_DETECTIONS_TO_CONFIRM = 3

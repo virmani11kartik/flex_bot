@@ -1,15 +1,39 @@
 {
   "image_file": "webcam",
-  "num_books": 1,
+  "num_books": 3,
   "books": [
     {
-      "call_number": "AI",
-      "confidence": 0.8881700932769319,
+      "call_number": "63",
+      "confidence": 0.9522214630413147,
       "text_components": [
-        "AI"
+        "63"
       ],
-      "detection_count": 4,
+      "detection_count": 5,
       "position": 1
+    },
+    {
+      "call_number": "04 276 B76 2016",
+      "confidence": 0.822810568520693,
+      "text_components": [
+        "QA",
+        "276",
+        "B76",
+        "2016"
+      ],
+      "detection_count": 10,
+      "position": 2
+    },
+    {
+      "call_number": "QC 23.2 T74 2015",
+      "confidence": 0.8192253904015822,
+      "text_components": [
+        "QC",
+        "23.2",
+        "174",
+        "2015"
+      ],
+      "detection_count": 7,
+      "position": 3
     }
   ]
 }
