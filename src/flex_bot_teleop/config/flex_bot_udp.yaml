@@ -1,6 +1,6 @@
 flex_bot_udp_bridge:
   ros__parameters:
-    imx7_ip: "192.168.1.50"
+    imx7_ip: "192.168.0.2"
     cmd_port: 5001
     fb_port: 5002
     cmd_rate_hz: 50.0

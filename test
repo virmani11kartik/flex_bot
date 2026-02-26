@@ -1,0 +1,29 @@
+li_bot@ubuntu:~$ rviz2
+[INFO] [1771387818.664364299] [rviz2]: Stereo is NOT SUPPORTED
+[INFO] [1771387818.664730276] [rviz2]: OpenGl version: 4.6 (GLSL 4.6)
+[INFO] [1771387818.760525361] [rviz2]: Stereo is NOT SUPPORTED
+[ERROR] [1771387835.985968081] [rviz2]: PluginlibFactory: The plugin for class 'grid_map_rviz_plugin/GridMap' failed to load. Error: According to the loaded plugin descriptions the class grid_map_rviz_plugin/GridMap with base class type rviz_common::Display does not exist. Declared types are  nav2_rviz_plugins/ParticleCloud rviz_default_plugins/AccelStamped rviz_default_plugins/Axes rviz_default_plugins/Camera rviz_default_plugins/DepthCloud rviz_default_plugins/Effort rviz_default_plugins/FluidPressure rviz_default_plugins/Grid rviz_default_plugins/GridCells rviz_default_plugins/Illuminance rviz_default_plugins/Image rviz_default_plugins/InteractiveMarkers rviz_default_plugins/LaserScan rviz_default_plugins/Map rviz_default_plugins/Marker rviz_default_plugins/MarkerArray rviz_default_plugins/Odometry rviz_default_plugins/Path rviz_default_plugins/PointCloud rviz_default_plugins/PointCloud2 rviz_default_plugins/PointStamped rviz_default_plugins/Polygon rviz_default_plugins/Pose rviz_default_plugins/PoseArray rviz_default_plugins/PoseWithCovariance rviz_default_plugins/Range rviz_default_plugins/RelativeHumidity rviz_default_plugins/RobotModel rviz_default_plugins/TF rviz_default_plugins/Temperature rviz_default_plugins/TwistStamped rviz_default_plugins/Wrench rviz_imu_plugin/Imu rviz_imu_plugin/Mag
+[ERROR] [1771387838.718708985] [rviz2]: Lookup would require extrapolation into the past.  Requested time 1771387838.691126 but the earliest data is at time 1771387840.048749, when looking up transform from frame [laser_1] to frame [odom]
+[INFO] [1771387991.564398510] [rviz]: Message Filter dropping message: frame 'odom' at time 1771387991.153 for reason 'discarding message because the queue is full'
+[INFO] [1771387992.876656321] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771387992.293 for reason 'discarding message because the queue is full'
+[INFO] [1771387994.093023184] [rviz]: Message Filter dropping message: frame 'odom' at time 1771387993.673 for reason 'discarding message because the queue is full'
+[INFO] [1771387997.580318111] [rviz]: Message Filter dropping message: frame 'odom' at time 1771387997.173 for reason 'discarding message because the queue is full'
+[INFO] [1771387997.771755101] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771387997.174 for reason 'discarding message because the queue is full'
+[INFO] [1771388004.659588033] [rviz]: Message Filter dropping message: frame 'odom' at time 1771387998.553 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[INFO] [1771388008.463817510] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771387998.369 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[INFO] [1771388291.776155173] [rviz]: Message Filter dropping message: frame 'odom' at time 1771388291.375 for reason 'discarding message because the queue is full'
+[INFO] [1771388294.304534647] [rviz]: Message Filter dropping message: frame 'odom' at time 1771388293.895 for reason 'discarding message because the queue is full'
+[INFO] [1771388296.832585237] [rviz]: Message Filter dropping message: frame 'odom' at time 1771388296.414 for reason 'discarding message because the queue is full'
+[INFO] [1771388298.880325112] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771388298.274 for reason 'discarding message because the queue is full'
+[INFO] [1771388299.360676783] [rviz]: Message Filter dropping message: frame 'odom' at time 1771388298.954 for reason 'discarding message because the queue is full'
+[INFO] [1771388301.408697117] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771388300.824 for reason 'discarding message because the queue is full'
+[INFO] [1771388301.888168690] [rviz]: Message Filter dropping message: frame 'odom' at time 1771388301.474 for reason 'discarding message because the queue is full'
+[INFO] [1771388303.969547645] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771388303.372 for reason 'discarding message because the queue is full'
+[INFO] [1771388310.102221356] [rviz]: Message Filter dropping message: frame 'odom' at time 1771388303.934 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+[INFO] [1771388313.913894932] [rviz]: Message Filter dropping message: frame 'laser_1' at time 1771388303.821 for reason 'the timestamp on the message is earlier than all the data in the transform cache'
+qt.qpa.xcb: QXcbConnection: XCB error: 2 (BadValue), sequence: 18063, resource id: 42, major code: 131 (Unknown), minor code: 53
+qt.qpa.xcb: QXcbConnection: XCB error: 2 (BadValue), sequence: 18435, resource id: 43, major code: 131 (Unknown), minor code: 53
+qt.qpa.xcb: QXcbConnection: XCB error: 2 (BadValue), sequence: 19339, resource id: 44, major code: 131 (Unknown), minor code: 53
+qt.qpa.xcb: QXcbConnection: XCB error: 2 (BadValue), sequence: 19886, resource id: 45, major code: 131 (Unknown), minor code: 53
+qt.qpa.xcb: QXcbConnection: XCB error: 2 (BadValue), sequence: 20183, resource id: 46, major code: 131 (Unknown), minor code: 53
+qt.qpa.xcb: QXcbConnection: XCB error: 2 (BadValue), sequence: 20544, resource id: 47, major code: 131 (Unknown), minor code: 53

@@ -8,26 +8,27 @@ wheel_odom_node:
     odom_topic: /wheel/odometry
 
     # Robot geometry
-    wheel_radius_m: 0.0762
-    wheel_base_m: 0.297
+    wheel_radius_m: 0.0765
+    wheel_base_m: 0.5000
     bias_correction_factor: 1.0
 
     # Update rate
     publish_rate_hz: 50.0
+    publish_tf: false
 
     # Probabilistic motion model (preserve your ESP32 semantics)
-    alpha1: 0.1
-    alpha2: 0.01
-    alpha3: 0.01
-    alpha4: 0.1
+    alpha1: 0.01
+    alpha2: 0.001
+    alpha3: 0.001
+    alpha4: 0.01
 
     # Encoder noise heuristic term (you used this in the ESP32 model)
-    encoder_noise_per_tick: 0.001
+    encoder_noise_per_tick: 0.00001
 
     # Initial covariance (x,y,yaw)
-    init_sigma_xx: 0.01
+    init_sigma_xx: 0.0001
     init_sigma_xy: 0.0
     init_sigma_xth: 0.0
-    init_sigma_yy: 0.01
+    init_sigma_yy: 0.0001
     init_sigma_yth: 0.0
-    init_sigma_thth: 0.01
+    init_sigma_thth: 0.0001

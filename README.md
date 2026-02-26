@@ -23,6 +23,8 @@ map → odom → base_link → laser_1
 ## Prerequisites
 
 - ROS 2 (Humble / Jazzy)
+- fastapi
+- uvicorn
 - Packages installed:
   - `sick_scan_xd`
   - `robot_localization`

@@ -12,3 +12,23 @@ log/
 ocr_env/
 
 *.MOV
+
+# --- Node Dependencies ---
+webUI/node_modules/
+
+# -- Environment variables
+webUI/.env 
+webUI/.env.*
+
+# -- OS junk --
+.DS_Store
+Thumbs.db
+
+# --Editor junk --
+.vscode/
+.idea/
+*.swp
+
+# pycache stuff
+
+./src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/

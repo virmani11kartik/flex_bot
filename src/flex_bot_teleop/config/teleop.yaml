@@ -1,11 +1,14 @@
 teleop_node:
   ros__parameters:
-    device: "/dev/input/js0"
+    joy_topic: "/joy"
 
     axis_ly: 1
-    axis_rx: 3
-    axis_lt: 2
-    axis_rt: 5
+    axis_rx: 2
+
+    axis_lt: -1
+    axis_rt: -1
+    btn_lt: 6    
+    btn_rt: 7     
 
     invert_ly: true
     invert_rx: false
@@ -14,10 +17,10 @@ teleop_node:
 
     deadman_button: -1
     deadband: 0.08
-    mix_scale: 0.8
-    max_rpm_cmd: 20.0
+    mix_scale: 1.0
+    max_rpm_cmd: 40.0
     turret_max_rad_s: 2.0
 
     publish_rate_hz: 100.0
-    stale_timeout_s: 100.0
+    stale_timeout_s: 0.5     
     ema_tau_s: 0.05

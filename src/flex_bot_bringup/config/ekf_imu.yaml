@@ -1,75 +1,61 @@
 ekf_filter_node:
   ros__parameters:
     frequency: 50.0
-    sensor_timeout: 0.1
+    sensor_timeout: 0.5
     two_d_mode: true
 
     publish_tf: true
-    map_frame: map
+    # map_frame: map
     odom_frame: odom
     base_link_frame: base_link
     world_frame: odom
 
-    imu0: /sick_scansegment_xd/imu
+    # -------------------------
+    # Wheel odometry input
+    # -------------------------
+    odom0: /wheel/odometry
+    odom0_queue_size: 20
+    odom0_differential: false
+    odom0_relative: false
 
-    # Fuse yaw and yaw-rate only (2D)
-    imu0_config: [false, false, false,   # x, y, z position
-                  false, false, true,    # roll, pitch, yaw
-                  false, false, false,   # x, y, z velocity
-                  false, false, true,    # roll, pitch, yaw velocity
-                  false, false, false]   # x, y, z acceleration  <-- OFF
+    # Fuse x, y, yaw and vx, vy, wz from wheel odom (tune as needed)
+    # State order:
+    # [x, y, z,
+    #  roll, pitch, yaw,
+    #  vx, vy, vz,
+    #  vroll, vpitch, vyaw,
+    #  ax, ay, az]
 
+    odom0_config: [true,  true,  false,
+                   false, false, true,
+                   true,  true,  false,
+                   false, false, true,
+                   false, false, false]
+
+    # odom0_config: [false, false, false,
+    #            false, false, false,
+    #            true,  false, false,
+    #            false, false, true,
+    #            false, false, false]
+
+
+    # -------------------------
+    # XSens IMU (orientation only)
+    # -------------------------
+    imu0: /xsens_imu
+    imu0_queue_size: 50
     imu0_differential: false
     imu0_relative: true
-    imu0_queue_size: 10
-
-    # If you're not using accel, this doesn't matter, but keep it false to reduce surprises
     imu0_remove_gravitational_acceleration: false
 
-    use_control: false
+    # Fuse only yaw orientation from IMU (2D)
+    
+    imu0_config: [false, false, false,
+                  false, false, true,
+                  false, false, false,
+                  false, false, false,
+                  false, false, false]
 
+    
+ 
 
-ekf_filter_node:
-  ros__parameters:
-    frequency: 30.0
-    sensor_timeout: 0.1
-    two_d_mode: false
-    
-    publish_tf: true
-    publish_acceleration: false
-    
-    map_frame: map
-    odom_frame: odom
-    base_link_frame: base_link
-    world_frame: odom
-    
-    # IMU configuration
-    imu0: /sick_scansegment_xd/imu
-    imu0_config: [false, false, false,  # x, y, z position (not used)
-                  true,  true,  true,   # roll, pitch, yaw orientation
-                  false, false, false,  # x, y, z velocity (not used)
-                  true,  true,  true,   # roll, pitch, yaw velocity
-                  true,  true,  true]   # x, y, z acceleration
-    imu0_differential: true
-    imu0_relative: false
-    imu0_queue_size: 10
-    imu0_remove_gravitational_acceleration: true
-    
-    use_control: false
-    
-    # Process noise covariance
-    process_noise_covariance: [0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.05, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.03, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.06, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.025, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.04, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.02, 0.0, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.01, 0.0,
-                               0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.015]

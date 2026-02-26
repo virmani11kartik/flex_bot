@@ -15,7 +15,7 @@ ament_target_dependencies(flex_bot_udp_bridge rclcpp std_msgs sensor_msgs)
 
 # If you include your teleop_node.cpp in this package:
 add_executable(teleop_node src/teleop_node.cpp)
-ament_target_dependencies(teleop_node rclcpp std_msgs)
+ament_target_dependencies(teleop_node rclcpp std_msgs sensor_msgs)
 
 install(TARGETS
   flex_bot_udp_bridge
