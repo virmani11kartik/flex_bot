@@ -49,8 +49,8 @@ class LidarWallFollow(Node):
             10
         )
 
-        self.pub_left = self.create_publisher(Float64, '/left_motor', 10)
-        self.pub_right = self.create_publisher(Float64, '/right_motor', 10)
+        self.pub_left = self.create_publisher(Float64, '/left_motor/vel_radps', 10)
+        self.pub_right = self.create_publisher(Float64, '/right_motor/vel_radps', 10)
 
         self.get_logger().info("Subscribed to /scan_fullframe. Publishing wheel commands to /left_motor and /right_motor.")
 
