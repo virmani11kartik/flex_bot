@@ -94,10 +94,10 @@ public:
     cmd_rate_hz_ = declare_parameter<double>("cmd_rate_hz", 50.0);
 
     // If true: ROS cmd topics are rad/s -> convert to rpm for UDP.
-    cmds_are_radps_ = declare_parameter<bool>("cmds_are_radps", false);
+    cmds_are_radps_ = declare_parameter<bool>("cmds_are_radps", true);
 
     // If true: publish feedback as rad/s topics (optional convenience)
-    publish_feedback_radps_ = declare_parameter<bool>("publish_feedback_radps", false);
+    publish_feedback_radps_ = declare_parameter<bool>("publish_feedback_radps", true);
 
     auto qos = rclcpp::QoS(10).best_effort();
 
