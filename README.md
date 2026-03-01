@@ -1,112 +1,156 @@
-# Companion Computer/Jetson Setup
+# FlexBot Companion Computer Setup
 
+This repository contains the companion computer (Jetson/Ubuntu PC) side of the FlexBot stack. It is designed to work alongside the IMX7 firmware — see the `imx7` branch for the embedded side.
 
+The packages covered here provide a minimal framework for:
+- **Teleoperation** — sending UDP commands to the IMX7 and receiving state feedback
+- **Wheel Odometry** — estimating robot motion from encoder data
+- **State Estimation** — fusing odometry and IMU via an EKF to produce a stable `odom → base_link` transform
 
-![Demo](demo.gif)
-
-The system publishes the standard TF chain:
-
-map → odom → base_link → laser_1
-└→ xsens_imu
-
-
-> **Important**
->
-> RViz can only show the scan and map moving in the world if
-> `odom → base_link` changes over time.
-> If no real odometry source exists (wheel odom / VIO / scan-matching odom),
-> and the LiDAR is moved by hand, the scan and map will appear “stuck” in `map`.
-> This is expected behavior.
+> **Note:** The `particle_filter` and full `bringup` packages are not part of this guide. Only the packages listed above are needed for a working teleop + odometry setup.
 
 ---
 
 ## Prerequisites
 
-- ROS 2 (Humble / Jazzy)
-- fastapi
-- uvicorn
-- Packages installed:
-  - `sick_scan_xd`
-  - `robot_localization`
-  - `slam_toolbox`
-  - `tf2_ros`
-  - `rviz2`
+- ROS 2 (Humble or Jazzy)
+- `robot_localization` — for EKF state estimation
+- `tf2_ros`
+- `rviz2` (optional, for visualization)
 
-Network example (adjust as needed):
-
-- Lidar IP: `192.168.0.1`
-- ROS PC (UDP receiver): `192.168.0.20`
+Network configuration (adjust to your setup):
+- IMX7 IP: e.g. `192.168.0.10`
+- Companion Computer IP (UDP receiver): e.g. `192.168.0.20`
 
 ---
 
-## Build Workspace
+## Build the Workspace
 
 ```bash
-cd ~/kr_flexbot
+cd ~/flex_bot
 colcon build --symlink-install
 source install/setup.bash
 ```
 
-Publish Static TF (base_link → IMU)
+---
 
-Declare the IMU as rigidly mounted to the robot body.
+## Package Overview
+
+### `flex_bot_teleop`
+
+Handles bidirectional UDP communication with the IMX7.
+
+- `udp_bridge_node` — bridges ROS 2 topics to/from UDP packets exchanged with the IMX7
+- `teleop_node` — converts joystick or keyboard input into velocity commands
+
+Configuration is in `config/flex_bot_udp.yaml` and `config/teleop.yaml`. Adjust UDP ports and IP addresses there to match your network.
+
+Launch teleop:
+```bash
+ros2 launch flex_bot_teleop flex_bot.launch.py
+```
+
+---
+
+### `flex_bot_odometry`
+
+Computes wheel odometry from encoder feedback received over UDP from the IMX7.
+
+Publishes `odom → base_link` as an odometry source (later fused by the EKF).
+
+Configuration is in `config/wheel_odom.yaml`.
+
+Launch wheel odometry:
+```bash
+ros2 launch flex_bot_odometry wheel_odom.launch.py
+```
+
+To visualize the odometry path:
+```bash
+ros2 run flex_bot_odometry odom_to_path.py
+```
+
+---
+
+### State Estimation (`flex_bot_bringup` — EKF only)
+
+The EKF (via `robot_localization`) fuses wheel odometry and IMU data to produce a smooth, stable `odom → base_link` transform.
+
+Configuration is in `flex_bot_bringup/config/ekf_imu.yaml`. Key settings:
+
+- `two_d_mode: true` — recommended for ground robots
+- Fuse yaw and yaw-rate from IMU; avoid fusing raw linear acceleration until a reliable odometry source is confirmed, as it will cause drift
+
+Launch state estimation:
+```bash
+ros2 launch flex_bot_bringup bringup_state_estimation.launch.py
+```
+
+Or run the EKF node directly:
+```bash
+ros2 run robot_localization ekf_node --ros-args --params-file \
+  ~/flex_bot/src/flex_bot_bringup/config/ekf_imu.yaml
+```
+
+---
+
+## Static TF Setup
+
+The robot requires static transforms declaring sensor mounting positions relative to `base_link`. Publish these before starting any other nodes.
+
+**base_link → IMU:**
 ```bash
 ros2 run tf2_ros static_transform_publisher \
   0 0 0 0 0 0 base_link xsens_imu
-
-    Replace the zeros with the real mounting transform when known.
 ```
-Publish Static TF (base_link → LiDAR)
+
+> Replace the zeros with the real mounting offset once measured.
+
+Verify the full TF tree at any time:
+```bash
+ros2 run tf2_tools view_frames
+```
+
+---
+
+## TF Chain
+
+The expected transform chain during normal operation:
+
+```
+odom → base_link        # published by robot_localization EKF
+         └→ xsens_imu  # static TF
+```
+
+> `map → odom` is not published in this minimal setup. It would require a SLAM or localization node, which is out of scope here.
+
+---
+
+## Recommended Launch Order
+
+1. Static TFs
+2. Teleop (UDP bridge + command input)
+3. Wheel Odometry
+4. State Estimation (EKF)
 
 ```bash
-ros2 run tf2_ros static_transform_publisher \
-  0 0 0 0 0 0 base_link laser_1
+# Terminal 1 — Static TFs
+ros2 launch flex_bot_bringup static_tfs.launch.py
 
-    Do not publish duplicate TFs.
-    Verify existing TFs using:
+# Terminal 2 — Teleop + UDP bridge
+ros2 launch flex_bot_teleop flex_bot.launch.py
 
-    ros2 run tf2_tools view_frames
+# Terminal 3 — Wheel odometry
+ros2 launch flex_bot_odometry wheel_odom.launch.py
+
+# Terminal 4 — EKF state estimation
+ros2 launch flex_bot_bringup bringup_state_estimation.launch.py
 ```
-Step 4: Start EKF (robot_localization)
 
-The EKF publishes odom → base_link.
-```bash
-ros2 run robot_localization ekf_node --ros-args --params-file \
-  ~/li_bot/src/picoscan_launch/config/ekf_imu.yaml
-```
-EKF Notes
+---
 
-    For 2D SLAM, two_d_mode: true is strongly recommended.
+## IMX7 Counterpart
 
-    If only IMU data is available, fusing linear acceleration will cause drift.
+The embedded firmware running on the IMX7 handles low-level motor control, encoder reading, and UDP packet formatting. See the `imx7` branch of this repository for that code.
 
-    A stable configuration fuses yaw and yaw-rate only until wheel odometry
-    or VIO is added.
-
-
-SLAM TF responsibilities
-
-    slam_toolbox: publishes map → odom
-
-    robot_localization: publishes odom → base_link
-
-    Static TFs: publish base_link → laser_1, base_link → sick_imu
-
-Step 6: RViz2 Visualization
-
-Start RViz:
-
-rviz2
-
-Fixed Frame
-
-    Set Fixed Frame = map
-
-Displays to add
-
-    TF
-
-    LaserScan
-
-        Topic: /scan_fullframe
-
+Make sure the UDP IP/port settings in `flex_bot_teleop/config/flex_bot_udp.yaml` match what is configured on the IMX7 side.
