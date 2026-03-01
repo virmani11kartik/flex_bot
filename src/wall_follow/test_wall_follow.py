@@ -166,7 +166,7 @@ class LidarWallFollow(Node):
         wl = clamp(wl, -max_wheel, max_wheel)
         wr = clamp(wr, -max_wheel, max_wheel)
 
-        self.publish_wheel_cmds(wl, wr)
+        self.publish_wheel_cmds(-1 * wl, -1 * wr)
 
         # ---- Log ----
         self.get_logger().info(
