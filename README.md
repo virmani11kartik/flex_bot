@@ -19,8 +19,8 @@ The packages covered here provide a minimal framework for:
 - `rviz2` (optional, for visualization)
 
 Network configuration (adjust to your setup):
-- IMX7 IP: e.g. `192.168.0.10`
-- Companion Computer IP (UDP receiver): e.g. `192.168.0.20`
+- IMX7 IP: Always check `192.168.0.2`
+- Companion Computer IP (UDP receiver): Set your computers wired connection ip. `192.168.0.20`
 
 ---
 
