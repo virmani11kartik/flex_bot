@@ -1,15 +1,13 @@
-# SICK PicoScan + IMU + EKF + SLAM Toolbox
+# Companion Computer/Jetson Setup
 
-This repository documents the full bringup pipeline for running a **SICK PicoScan LiDAR**
-with its IMU, fusing data using `robot_localization` (EKF), and performing 2D SLAM using
-`slam_toolbox`.
+
 
 ![Demo](demo.gif)
 
 The system publishes the standard TF chain:
 
 map → odom → base_link → laser_1
-└→ sick_imu
+└→ xsens_imu
 
 
 > **Important**
@@ -36,7 +34,7 @@ map → odom → base_link → laser_1
 
 Network example (adjust as needed):
 
-- PicoScan IP: `192.168.0.1`
+- Lidar IP: `192.168.0.1`
 - ROS PC (UDP receiver): `192.168.0.20`
 
 ---
@@ -44,45 +42,22 @@ Network example (adjust as needed):
 ## Build Workspace
 
 ```bash
-cd ~/li_bot
+cd ~/kr_flexbot
 colcon build --symlink-install
 source install/setup.bash
 ```
-Step 1: Launch SICK PicoScan (LiDAR + IMU)
-```bash
-ros2 launch sick_scan_xd sick_picoscan.launch.py \
-  hostname:=192.168.0.1 \
-  udp_receiver_ip:=192.168.0.20 \
-  publish_frame_id:=laser \
-  host_FREchoFilter:=0 \
-  tf_publish_rate:=0
-```
-Expected outputs
 
-    Laser scan:
-
-        Topic: /scan_fullframe
-
-        Frame: laser_1
-
-    IMU:
-
-        Topic: /sick_scansegment_xd/imu
-
-        Frame: sick_imu
-
-Step 2: Publish Static TF (base_link → IMU)
+Publish Static TF (base_link → IMU)
 
 Declare the IMU as rigidly mounted to the robot body.
 ```bash
 ros2 run tf2_ros static_transform_publisher \
-  0 0 0 0 0 0 base_link sick_imu
+  0 0 0 0 0 0 base_link xsens_imu
 
     Replace the zeros with the real mounting transform when known.
 ```
-Step 3: Publish Static TF (base_link → LiDAR)
+Publish Static TF (base_link → LiDAR)
 
-If sick_scan_xd does not publish this transform, publish it manually:
 ```bash
 ros2 run tf2_ros static_transform_publisher \
   0 0 0 0 0 0 base_link laser_1
@@ -108,11 +83,7 @@ EKF Notes
     A stable configuration fuses yaw and yaw-rate only until wheel odometry
     or VIO is added.
 
-Step 5: Launch SLAM Toolbox (Online Async)
-```bash
-ros2 launch slam_toolbox online_async_launch.py \
-  slam_params_file:=$HOME/li_bot/src/picoscan_launch/config/slam_config.yaml
-```
+
 SLAM TF responsibilities
 
     slam_toolbox: publishes map → odom
