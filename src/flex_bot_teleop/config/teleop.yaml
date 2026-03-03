@@ -1,26 +1,37 @@
 teleop_node:
   ros__parameters:
     joy_topic: "/joy"
-
     axis_ly: 1
     axis_rx: 2
-
     axis_lt: -1
     axis_rt: -1
-    btn_lt: 6    
-    btn_rt: 7     
-
+    btn_lt: 6
+    btn_rt: 7
     invert_ly: true
     invert_rx: false
     invert_lt: false
     invert_rt: false
-
     deadman_button: -1
     deadband: 0.08
     mix_scale: 1.0
     max_rpm_cmd: 40.0
     turret_max_rad_s: 2.0
-
     publish_rate_hz: 100.0
-    stale_timeout_s: 0.5     
+    stale_timeout_s: 0.5
     ema_tau_s: 0.05
+
+    # ── Linear actuator ──────────────────────────────
+    btn_act_extend:  11
+    btn_act_retract: 12
+
+    # ── Stepper direction ────────────────────────────
+    btn_step_cw:  1
+    btn_step_ccw: 0
+
+    # ── Stepper speed (tap to change) ────────────────
+    btn_speed_up:   6
+    btn_speed_down: 4
+    stepper_speed_init: 500
+    stepper_speed_min:  300
+    stepper_speed_max:  3000
+    stepper_speed_step: 300
