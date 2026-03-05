@@ -4,6 +4,8 @@ This repository documents the full bringup pipeline for running a **SICK PicoSca
 with its IMU, fusing data using `robot_localization` (EKF), and performing 2D SLAM using
 `slam_toolbox`.
 
+![Demo](demo.gif)
+
 The system publishes the standard TF chain:
 
 map → odom → base_link → laser_1
