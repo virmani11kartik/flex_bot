@@ -1,6 +1,10 @@
-# FlexBot Companion Computer Setup
+# SICK PicoScan + IMU + EKF + SLAM Toolbox
 
-This repository contains the companion computer (Jetson/Ubuntu PC) side of the FlexBot stack. It is designed to work alongside the IMX7 firmware — see the `imx7` branch for the embedded side.
+This repository documents the full bringup pipeline for running a **SICK PicoScan LiDAR**
+with its IMU, fusing data using `robot_localization` (EKF), and performing 2D SLAM using
+`slam_toolbox`.
+
+![Demo](demo.gif)
 
 The packages covered here provide a minimal framework for:
 - **Teleoperation** — sending UDP commands to the IMX7 and receiving state feedback
