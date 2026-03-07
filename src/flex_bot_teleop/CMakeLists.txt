@@ -17,9 +17,13 @@ ament_target_dependencies(flex_bot_udp_bridge rclcpp std_msgs sensor_msgs)
 add_executable(teleop_node src/teleop_node.cpp)
 ament_target_dependencies(teleop_node rclcpp std_msgs sensor_msgs)
 
+add_executable(serial_bridge_node src/serial_bridge_node.cpp)
+ament_target_dependencies(serial_bridge_node rclcpp std_msgs sensor_msgs)
+
 install(TARGETS
   flex_bot_udp_bridge
   teleop_node
+  serial_bridge_node
   DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch config

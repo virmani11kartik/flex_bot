@@ -24,7 +24,7 @@ def generate_launch_description():
         executable="static_transform_publisher",
         name="static_tf_laser_1",
         output="screen",
-        arguments=["0", "0", "0", "0", "0", "0", "base_link", "laser_1"],
+        arguments=["0.25", "0", "0", "0", "0", "0", "base_link", "laser_1"],
     )
 
     return LaunchDescription([tf_lidar])
