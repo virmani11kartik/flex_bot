@@ -26,12 +26,24 @@ ekf_filter_node:
     #  vroll, vpitch, vyaw,
     #  ax, ay, az]
 
-    odom0_config: [true,  true,  false,
-                   false, false, true,
-                   true,  true,  false,
-                   false, false, true,
-                   false, false, false]
+    # odom0_config: [true,  true,  false,
+    #                false, false, true,
+    #                true,  true,  false,
+    #                false, false, true,
+    #                false, false, false]
 
+    # odom0_config: [true,  true,  false,
+    #            false, false, true,
+    #            true,  false, false,   # vy=false
+    #            false, false, true,
+    #            false, false, false]
+
+    odom0_config: [false, false, false,
+               false, false, false,
+               true,  false, false,
+               false, false, true,
+               false, false, false]
+               
     # odom0_config: [false, false, false,
     #            false, false, false,
     #            true,  false, false,
@@ -45,16 +57,22 @@ ekf_filter_node:
     imu0: /xsens_imu
     imu0_queue_size: 50
     imu0_differential: false
-    imu0_relative: true
+    imu0_relative: false
     imu0_remove_gravitational_acceleration: false
 
     # Fuse only yaw orientation from IMU (2D)
     
-    imu0_config: [false, false, false,
-                  false, false, true,
-                  false, false, false,
-                  false, false, false,
-                  false, false, false]
+    # imu0_config: [false, false, false,
+    #               false, false, true,
+    #               false, false, false,
+    #               false, false, false,
+    #               false, false, false]
+
+    imu0_config:  [false, false, false,
+               false, false, true,
+               false, false, false,
+               false, false, false,
+               false, false, false]
 
     
  

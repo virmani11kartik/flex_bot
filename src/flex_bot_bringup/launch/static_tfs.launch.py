@@ -26,5 +26,5 @@ def generate_launch_description():
         output="screen",
         arguments=["0.25", "0", "0", "0", "0", "0", "base_link", "laser_1"],
     )
-
+    
     return LaunchDescription([tf_lidar])
