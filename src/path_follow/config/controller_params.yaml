@@ -28,7 +28,7 @@ waypoint_controller:
     wheel_base: 0.5000         # m — full track width left-to-right wheel contact
     max_wheel_rads: 3.0         # rad/s — hardware limit
     # Motion
-    linear_speed: 0.15         # m/s cruise (start low, tune up)
+    linear_speed: 0.15         # m/s 
     max_omega: 0.8             # rad/s angular clamp
     goal_tolerance: 0.4        # m — advance to next waypoint
     final_tolerance: 0.10       # m — declare goal reached

@@ -16,7 +16,6 @@
 #include <cmath>
 #include <algorithm>
 
-
 // quat -> yaw (radians)
 double quat_to_yaw(const geometry_msgs::msg::Quaternion& q_in) {
     const double n = std::sqrt(q_in.x*q_in.x + q_in.y*q_in.y +

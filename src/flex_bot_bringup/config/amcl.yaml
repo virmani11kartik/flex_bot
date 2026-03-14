@@ -30,3 +30,8 @@ amcl:
     initial_pose_yaw: 0.0
     first_map_only: false
     save_pose_rate: 0.5
+    # ODOM Covariance
+    alpha1: 0.05
+    alpha2: 0.05
+    alpha3: 0.05
+    alpha4: 0.05

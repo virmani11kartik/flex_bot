@@ -23,13 +23,13 @@
  *
  * Parameters:
  *   wheel_radius    (double, 0.076)   m
- *   wheel_base      (double, 0.30)    m   full track width (left-to-right)
+ *   wheel_base      (double, 0.50)    m   full track width (left-to-right)
  *   max_wheel_rads  (double, 3.0)     rad/s hardware limit
  *   linear_speed    (double, 0.25)    m/s cruise speed
  *   max_omega       (double, 1.2)     rad/s angular clamp
- *   goal_tolerance  (double, 0.20)    m   advance to next waypoint
+ *   goal_tolerance  (double, 0.40)    m   advance to next waypoint
  *   final_tolerance (double, 0.10)    m   declare goal reached
- *   heading_kp      (double, 2.5)     angular P gain
+ *   heading_kp      (double, 1.5)     angular P gain
  *   lookahead       (double, 0.6)     m   pure-pursuit look-ahead
  *   slow_dist       (double, 0.8)     m   start slowing near goal
  *   min_speed       (double, 0.04)    m/s minimum forward speed

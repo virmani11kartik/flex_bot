@@ -7,13 +7,13 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    pkg_share = get_package_share_directory("flex_bot_controller")
+    pkg_share = get_package_share_directory("path_follow")
     params_file = os.path.join(pkg_share, "config", "controller_params.yaml")
 
     use_prm = LaunchConfiguration("use_prm")
 
     prm_builder = Node(
-        package="flex_bot_controller",
+        package="path_follow",
         executable="prm_builder",
         name="prm_builder",
         output="screen",
@@ -21,7 +21,7 @@ def generate_launch_description():
     )
 
     astar_search = Node(
-        package="flex_bot_controller",
+        package="path_follow",
         executable="astar_search",
         name="astar_planner",
         output="screen",
@@ -29,7 +29,7 @@ def generate_launch_description():
     )
 
     waypoint_controller = Node(
-        package="flex_bot_controller",
+        package="path_follow",
         executable="waypoint_controller",
         name="waypoint_controller",
         output="screen",

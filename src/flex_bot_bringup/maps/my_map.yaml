@@ -6,7 +6,7 @@
 # occupied_thresh: 0.65
 # free_thresh: 0.25
 
-image: my_map.pgm
+image: my_map.pgm # levine 4 
 mode: trinary
 resolution: 0.05
 origin: [-18.7, -27.2, 0]
