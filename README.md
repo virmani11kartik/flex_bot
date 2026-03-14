@@ -4,18 +4,21 @@ A complete ROS 2 autonomy stack for a differential-drive robot equipped with a *
 
 ---
 
-![Mapping](mapping.gif)
-![Localization](localization.gif)
-![Autonomous Navigation](autonomous.gif)
+![Mapping](gifs/mapping.gif)
+![Localization](gifs/localization.gif)
+
+> **Autonomous Mode** (Adaptive Monte Carlo localization):
+
+> ![Autonomous Navigation](gifs/autonomous.gif)
 
 > **Raw EKF odometry** (no SLAM, no localization) — encoder + IMU fusion only:
 > ![EKF Odometry Demo](demo.gif)
 
 ---
 
-#### Map — Levine Hall 4th Floor, University of Pennsylvania
+#### Map — Levine Hall 4th Floor, University of Pennsylvania (GRASP Lab)
 
-![Levine 4th Floor Map](my_map.png)
+![Levine 4th Floor Map](gifs/my_map.png)
 
 > Map generated using SICK PicoScan LiDAR. Testing environment: Levine Hall 4th Floor, University of Pennsylvania.
 
