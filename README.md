@@ -13,6 +13,12 @@ A complete ROS 2 autonomy stack for a differential-drive robot equipped with a *
 
 ---
 
+#### Map — Levine Hall 4th Floor, University of Pennsylvania
+
+![Levine 4th Floor Map](my_map.png)
+
+> Map generated using SICK PicoScan LiDAR. Testing environment: Levine Hall 4th Floor, University of Pennsylvania.
+
 ## Repository Structure
 
 ```
