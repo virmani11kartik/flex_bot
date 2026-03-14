@@ -12,7 +12,7 @@ A complete ROS 2 autonomy stack for a differential-drive robot equipped with a *
 > ![Autonomous Navigation](gifs/autonomous.gif)
 
 > **Raw EKF odometry** (no SLAM, no localization) — encoder + IMU fusion only:
-> ![EKF Odometry Demo](demo.gif)
+> ![EKF Odometry Demo](gifs/demo.gif)
 
 ---
 
