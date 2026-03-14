@@ -485,6 +485,32 @@ private:
         return path;
     }
 
+    nav_msgs::msg::Path interpolatePath(const nav_msgs::msg::Path& input, double step_m = 0.1) {
+        nav_msgs::msg::Path out;
+        out.header = input.header;
+        if (input.poses.size() < 2) return input;
+
+        for (size_t i = 0; i < input.poses.size() - 1; ++i) {
+            double x0 = input.poses[i].pose.position.x;
+            double y0 = input.poses[i].pose.position.y;
+            double x1 = input.poses[i+1].pose.position.x;
+            double y1 = input.poses[i+1].pose.position.y;
+            double seg_len = std::hypot(x1-x0, y1-y0);
+            int steps = std::max(1, (int)(seg_len / step_m));
+            for (int s = 0; s < steps; ++s) {
+                double t = (double)s / steps;
+                geometry_msgs::msg::PoseStamped ps;
+                ps.header = out.header;
+                ps.pose.position.x = x0 + t*(x1-x0);
+                ps.pose.position.y = y0 + t*(y1-y0);
+                ps.pose.orientation.w = 1.0;
+                out.poses.push_back(ps);
+            }
+        }
+        out.poses.push_back(input.poses.back()); // add final point
+        return out;
+    }
+
     double euclideanDistance(double x1, double y1, double x2, double y2) const {
         double dx = x2 - x1;
         double dy = y2 - y1;
@@ -579,7 +605,8 @@ private:
         double planning_time = (end_time - start_time).seconds() * 1000.0;
 
         if (!path.poses.empty()) {
-            path_pub_->publish(path);
+            auto dense_path = interpolatePath(path, 0.10);
+            path_pub_->publish(dense_path);
             RCLCPP_INFO(get_logger(), "Published path with %zu poses (%.2f ms)", 
                        path.poses.size(), planning_time);
         } else {
