@@ -1,0 +1,36 @@
+# ── PRM Builder ───────────────────────────────────────────────────────────────
+prm_builder:
+  ros__parameters:
+    samples: 8000               # number of random nodes to sample
+    k_neighbors: 6              # PRM* connectivity target
+    inflation_radius_m: 0.30    # obstacle inflation (should match robot radius + margin)
+    occupied_threshold: 40      # occupancy value considered blocked
+    allow_unknown: false        # treat unknown cells as occupied
+    seed: 0                     # 0 = random seed each run
+    publish_inflated_map: true  # publish /map_inflated for RViz debugging
+
+# ── A* Planner ────────────────────────────────────────────────────────────────
+astar_planner:
+  ros__parameters:
+    use_prm: true               # true = A* over PRM graph, false = grid A*
+    heuristic_weight: 1.0       # >1.0 = faster but suboptimal (weighted A*)
+    inflation_radius_m: 0.20    # extra inflation for grid A* mode
+    allow_diagonal: true        # allow 8-connected grid search
+    use_tf_start: true          # get start pose from TF (map->base_link)
+    map_frame: "map"
+    base_frame: "base_link"
+
+# ── Waypoint Controller ───────────────────────────────────────────────────────
+waypoint_controller:
+  ros__parameters:
+    map_frame: "map"
+    base_frame: "base_link"
+    linear_speed: 0.3           # m/s cruise speed
+    max_angular_speed: 1.0      # rad/s clamp
+    goal_tolerance: 0.20        # m — advance to next waypoint
+    final_tolerance: 0.10       # m — declare goal reached
+    heading_kp: 2.0             # angular P gain
+    lookahead: 0.5              # m — pure-pursuit look-ahead distance
+    use_pure_pursuit: true      # false = simple P-heading to each waypoint
+    slow_dist: 0.8              # m — start slowing within this dist of final goal
+    min_speed: 0.05             # m/s — minimum speed while moving

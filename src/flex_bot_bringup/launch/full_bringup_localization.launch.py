@@ -16,7 +16,10 @@ def generate_launch_description():
 
     rviz_config = os.path.join(pkg_share, "rviz", "bringup.rviz")
     amcl_params_file = os.path.join(pkg_share, "config", "amcl.yaml")
-    map_server_params_file = os.path.join(pkg_share, "config", "map_server.yaml")
+
+    # This resolves to the installed package path automatically
+    # Works on any machine after colcon build + source
+    map_yaml_path = os.path.join(pkg_share, "maps", "my_map.yaml")
 
     wheel_odom = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
@@ -47,7 +50,10 @@ def generate_launch_description():
         executable="map_server",
         name="map_server",
         output="screen",
-        parameters=[map_server_params_file],
+        parameters=[{
+            "use_sim_time": False,
+            "yaml_filename": map_yaml_path,  # resolved at launch time
+        }],
     )
 
     amcl = Node(
