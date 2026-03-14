@@ -1,19 +1,15 @@
 amcl:
   ros__parameters:
     use_sim_time: false
-
     base_frame_id: "base_link"
     odom_frame_id: "odom"
     global_frame_id: "map"
     scan_topic: /scan_fullframe
-
     tf_broadcast: true
     transform_tolerance: 0.5
-
     min_particles: 500
     max_particles: 2000
     resample_interval: 1
-
     laser_model_type: "likelihood_field"
     max_beams: 60
     z_hit: 0.5
@@ -23,13 +19,14 @@ amcl:
     sigma_hit: 0.2
     lambda_short: 0.1
     laser_likelihood_max_dist: 2.0
-
     update_min_d: 0.10
     update_min_a: 0.10
-
     recovery_alpha_slow: 0.0
     recovery_alpha_fast: 0.0
-
-    set_initial_pose: false
+    set_initial_pose: true        
+    initial_pose_x: 0.0
+    initial_pose_y: 0.0
+    initial_pose_z: 0.0
+    initial_pose_yaw: 0.0
     first_map_only: false
     save_pose_rate: 0.5

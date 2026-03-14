@@ -46,14 +46,14 @@ def generate_launch_description():
         )
     )
 
-    # rviz = Node(
-    #     package="rviz2",
-    #     executable="rviz2",
-    #     name="rviz2",
-    #     output="screen",
-    #     arguments=["-d", rviz_config],
-    #     condition=IfCondition(use_rviz),
-    # )
+    rviz = Node(
+        package="rviz2",
+        executable="rviz2",
+        name="rviz2",
+        output="screen",
+        arguments=["-d", rviz_config],
+        condition=IfCondition(use_rviz),
+    )
 
     return LaunchDescription([
         DeclareLaunchArgument("use_rviz", default_value="true"),
@@ -62,7 +62,7 @@ def generate_launch_description():
         ekf,
         cartographer,
         wheel_odom,
-        # rviz,
+        rviz,
     ])
 
 # to save run
