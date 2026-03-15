@@ -25,12 +25,13 @@ waypoint_controller:
   ros__parameters:
     # Robot geometry — TUNE to match your actual robot
     wheel_radius: 0.0765        # m — measure your wheel radius
-    wheel_base: 0.5000         # m — full track width left-to-right wheel contact
+    wheel_base: 0.5000          # m — full track width left-to-right wheel contact
     max_wheel_rads: 3.0         # rad/s — hardware limit
+
     # Motion
-    linear_speed: 0.15         # m/s 
-    max_omega: 0.8             # rad/s angular clamp
-    goal_tolerance: 0.4        # m — advance to next waypoint
+    linear_speed: 0.15          # m/s
+    max_omega: 0.8              # rad/s angular clamp
+    goal_tolerance: 0.4         # m — advance to next waypoint
     final_tolerance: 0.10       # m — declare goal reached
     heading_kp: 1.2             # angular P gain
     lookahead: 1.0              # m — pure-pursuit look-ahead
@@ -38,3 +39,25 @@ waypoint_controller:
     min_speed: 0.04             # m/s — minimum speed while moving
     map_frame: "map"
     base_frame: "base_link"
+
+    # ── Obstacle avoidance (local map) ────────────────────────────────────────
+    # Topic your lidar publishes LaserScan on
+    scan_topic: "/scan_fullframe"
+
+    # Local occupancy grid size — should cover at least your lookahead distance.
+    # Grid is a square centred on the robot, recentred every control cycle.
+    local_map_radius: 2.0       # m — half-size of local grid (total = 2x this)
+    local_map_resolution: 0.05  # m/cell — match or coarser than your lidar resolution
+
+    # How long to wait (holding position) for an obstacle to clear before
+    # triggering a full A* replan.  Short = aggressive replanning.
+    # Long = patient waiting (good for people who will move).
+    obstacle_wait_s: 3.0        # seconds
+
+    # Half-width of the corridor checked ahead of the robot along the path.
+    # Set to ~robot_width / 2 + small safety margin.
+    corridor_width: 0.35        # m
+
+    # Inflation applied to each lidar hit in the local map.
+    # Should be >= robot_radius so the robot body clears obstacles, not just centre.
+    inflation_radius: 0.25      # m
