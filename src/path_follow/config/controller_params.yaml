@@ -3,7 +3,7 @@ prm_builder:
   ros__parameters:
     samples: 8000               # number of random nodes to sample
     k_neighbors: 6              # PRM* connectivity target
-    inflation_radius_m: 0.30    # obstacle inflation (robot radius + safety margin)
+    inflation_radius_m: 0.60    # obstacle inflation (robot radius + safety margin)
     occupied_threshold: 40      # occupancy value considered blocked
     allow_unknown: false
     seed: 0                     # 0 = random seed each run
@@ -33,7 +33,7 @@ waypoint_controller:
     goal_tolerance: 0.4        # m — advance to next waypoint
     final_tolerance: 0.10       # m — declare goal reached
     heading_kp: 1.2             # angular P gain
-    lookahead: 1.0              # m — pure-pursuit look-ahead
+    lookahead: 0.4              # m — pure-pursuit look-ahead
     slow_dist: 0.8              # m — start slowing near final goal
     min_speed: 0.04             # m/s — minimum speed while moving
     map_frame: "map"
