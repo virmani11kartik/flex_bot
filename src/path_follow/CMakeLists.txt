@@ -19,6 +19,8 @@ find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
+find_package(Eigen3 REQUIRED)
+find_package(obstacle_detector REQUIRED)
 # nanoflann is header-only; find it or fall back to system include
 find_package(nanoflann QUIET)
 if(NOT nanoflann_FOUND)
@@ -43,6 +45,7 @@ set(COMMON_DEPS
   tf2
   tf2_ros
   tf2_geometry_msgs
+  obstacle_detector       # ← add this
 )
 
 # ── prm_builder ─────────────────────────────────────────────────────────────
@@ -61,6 +64,7 @@ ament_target_dependencies(astar_search ${COMMON_DEPS})
 # ── waypoint_controller ──────────────────────────────────────────────────────
 add_executable(waypoint_controller src/waypoint_controller.cpp)
 ament_target_dependencies(waypoint_controller ${COMMON_DEPS})
+target_link_libraries(waypoint_controller Eigen3::Eigen)
 
 # ── Install ──────────────────────────────────────────────────────────────────
 install(TARGETS

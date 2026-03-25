@@ -14,8 +14,10 @@ find_package(nav_msgs REQUIRED)
 find_package(visualization_msgs REQUIRED)
 find_package(tf2 REQUIRED)
 find_package(tf2_ros REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 
-set(DEPS rclcpp std_msgs geometry_msgs nav_msgs visualization_msgs tf2 tf2_ros)
+set(DEPS rclcpp std_msgs geometry_msgs nav_msgs visualization_msgs 
+         tf2 tf2_ros ament_index_cpp)
 
 # ── pgv_dock_controller ───────────────────────────────────────────────────────
 add_executable(pgv_dock_controller src/pgv_dock_controller.cpp)

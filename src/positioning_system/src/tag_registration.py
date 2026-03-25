@@ -22,20 +22,12 @@ from datetime import datetime
 
 import rclpy
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy
+from rclpy.qos import QoSProfile, DurabilityPolicy, ReliabilityPolicy, HistoryPolicy
 from geometry_msgs.msg import PointStamped, PoseWithCovarianceStamped
 from std_msgs.msg import Float64
 from visualization_msgs.msg import Marker, MarkerArray
 
-try:
-    from ament_index_python.packages import get_package_share_directory
-    _PKG_SHARE = get_package_share_directory("positioning_system")
-except Exception:
-    _PKG_SHARE = None
-
 DEFAULT_MARKERS_FILE = os.path.join(
-    _PKG_SHARE, "config", "markers.json"
-) if _PKG_SHARE else os.path.join(
     os.path.expanduser("~"), "flex_bot", "src",
     "positioning_system", "config", "markers.json"
 )
@@ -57,6 +49,14 @@ def get_key():
         return sys.stdin.read(1) if rlist else None
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old)
+
+
+def _spin_safe(node):
+    """Spin the node, silently absorbing shutdown-related exceptions."""
+    try:
+        rclpy.spin(node)
+    except Exception:
+        pass
 
 
 class TagRegistration(Node):
@@ -83,17 +83,31 @@ class TagRegistration(Node):
         self.amcl_yaw    = None
         self.have_amcl   = False
 
+        # QoS for PGV sensor topics (published as BEST_EFFORT)
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            durability=DurabilityPolicy.VOLATILE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
         # Subscribers
-        self.create_subscription(PointStamped, "/pgv/position",   self._cb_pos,   10)
-        self.create_subscription(Float64,      "/pgv/tag_id",     self._cb_tag,   10)
-        self.create_subscription(Float64,      "/pgv/angle_deg",  self._cb_angle, 10)
+        self.create_subscription(PointStamped, "/pgv/position",
+                                 self._cb_pos,   sensor_qos)
+        self.create_subscription(Float64,      "/pgv/tag_id",
+                                 self._cb_tag,   sensor_qos)
+        self.create_subscription(Float64,      "/pgv/angle_deg",
+                                 self._cb_angle, sensor_qos)
+        # AMCL is RELIABLE — use default QoS
         self.create_subscription(PoseWithCovarianceStamped, "/amcl_pose",
                                  self._cb_amcl, 10)
 
         # Latched MarkerArray publisher for RViz
-        latched_qos = QoSProfile(depth=1,
+        latched_qos = QoSProfile(
+            depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
-            reliability=ReliabilityPolicy.RELIABLE)
+            reliability=ReliabilityPolicy.RELIABLE
+        )
         self.marker_pub = self.create_publisher(
             MarkerArray, "/positioning/markers_viz", latched_qos)
 
@@ -110,7 +124,7 @@ class TagRegistration(Node):
         print("  Q / Ctrl+C — quit and save")
         print("="*62 + "\n")
 
-    # ── Callbacks ─────────────────────────────────────────────────────────────
+    # ── Callbacks ──────────────────────────────────────────────────────────────
     def _cb_pos(self, msg):
         with self._lock:
             self.pgv_x_m = msg.point.x
@@ -131,7 +145,7 @@ class TagRegistration(Node):
             self.amcl_yaw = math.degrees(quat_to_yaw(msg.pose.pose.orientation))
             self.have_amcl = True
 
-    # ── Status line ───────────────────────────────────────────────────────────
+    # ── Status line ────────────────────────────────────────────────────────────
     def _print_status(self):
         with self._lock:
             tag = self.pgv_tag_id
@@ -148,7 +162,7 @@ class TagRegistration(Node):
         print(f"\r  [{tag_str:12s}]  {pgv_str}  |  {amcl_str}    ",
               end="", flush=True)
 
-    # ── Lock and register ─────────────────────────────────────────────────────
+    # ── Lock and register ──────────────────────────────────────────────────────
     def lock_and_register(self):
         with self._lock:
             tag_id  = self.pgv_tag_id
@@ -208,7 +222,7 @@ class TagRegistration(Node):
             json.dump(self.markers, f, indent=2)
         print(f"  Saved → {self.markers_file}")
 
-    # ── Publish all markers to RViz ───────────────────────────────────────────
+    # ── Publish all markers to RViz ────────────────────────────────────────────
     def _publish_all_markers(self):
         arr = MarkerArray()
         mid = 0
@@ -285,7 +299,8 @@ def main():
     rclpy.init()
     node = TagRegistration(DEFAULT_MARKERS_FILE)
 
-    spin_thread = threading.Thread(target=rclpy.spin, args=(node,), daemon=True)
+    spin_thread = threading.Thread(
+        target=_spin_safe, args=(node,), daemon=True)
     spin_thread.start()
 
     try:
@@ -303,7 +318,9 @@ def main():
         print()
         node.print_summary()
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
+        spin_thread.join(timeout=2.0)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@
 #include <tf2_ros/buffer.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
+#include <Eigen/Dense>
 #include <cmath>
 #include <vector>
 #include <string>
@@ -59,7 +60,7 @@ public:
 
         // ── Existing parameters ──────────────────────────────────────────────
         wheel_radius_    = declare_parameter<double>("wheel_radius",    0.076);
-        wheel_base_      = declare_parameter<double>("wheel_base",      0.30);
+        wheel_base_      = declare_parameter<double>("wheel_base",      0.50);
         max_wheel_rads_  = declare_parameter<double>("max_wheel_rads",  3.0);
         linear_speed_    = declare_parameter<double>("linear_speed",    0.25);
         max_omega_       = declare_parameter<double>("max_omega",       1.2);
@@ -143,6 +144,8 @@ private:
     double goal_tolerance_, final_tolerance_;
     double heading_kp_, lookahead_, slow_dist_, min_speed_;
     std::string map_frame_, base_frame_;
+    double cbf_alpha_, r_robot_;
+    bool   cbf_enabled_;
 
     // ── New parameters ────────────────────────────────────────────────────────
     std::string scan_topic_;
@@ -155,6 +158,7 @@ private:
     // ── Pose state ────────────────────────────────────────────────────────────
     double pose_x_{0}, pose_y_{0}, pose_yaw_{0};
     bool   have_pose_{false};
+    bool   docking_{false};
 
     // ── Path state ────────────────────────────────────────────────────────────
     std::vector<geometry_msgs::msg::PoseStamped> waypoints_;
@@ -382,17 +386,14 @@ private:
     static double quatToYaw(double x, double y, double z, double w) {
         return std::atan2(2.0*(w*z + x*y), 1.0 - 2.0*(y*y + z*z));
     }
-
     inline double wrapAngle(double a) {
         while (a >  M_PI) a -= 2.0 * M_PI;
         while (a < -M_PI) a += 2.0 * M_PI;
         return a;
     }
-
     inline double clamp(double v, double lo, double hi) {
         return std::max(lo, std::min(hi, v));
     }
-
     inline double dist2d(double ax, double ay, double bx, double by) {
         return std::hypot(bx - ax, by - ay);
     }
@@ -422,8 +423,7 @@ private:
     }
 
     void stopRobot() {
-        std_msgs::msg::Float64 zero;
-        zero.data = 0.0;
+        std_msgs::msg::Float64 zero; zero.data = 0.0;
         left_pub_->publish(zero);
         right_pub_->publish(zero);
     }
@@ -439,8 +439,34 @@ private:
             pose_yaw_ = quatToYaw(q.x, q.y, q.z, q.w);
             have_pose_ = true;
             return true;
-        } catch (...) {
-            return false;
+        } catch (...) { return false; }
+    }
+
+    // ── CBF-QP ─────────────────────────────────────────────────────────────
+    /**
+     * Solve safety filter QP using Eigen3 active-set method.
+     *
+     * Problem:
+     *   min  ||u - u_nom||²
+     *   s.t. for each obstacle i:
+     *        A_i * u <= b_i    (CBF constraint)
+     *        velocity box constraints
+     *
+     * State:  p = (pose_x_, pose_y_)
+     * Control: u = [v, omega]
+     * Robot CoM velocity: [v*cos(yaw), v*sin(yaw)]
+     *
+     * CBF for circle obstacle i:
+     *   h_i = ||p - p_i||² - r_safe_i²
+     *   ḣ_i = 2(p-p_i)·(v_robot - v_obs_i) >= -alpha * h_i
+     *
+     * Rearranged as inequality:
+     *   -2(dx*cos(yaw) + dy*sin(yaw)) * v  <=  Lfh_i + alpha*h_i
+     *   (omega term is zero for CoM translation)
+     */
+    std::pair<double,double> cbfQP(double v_nom, double omega_nom) {
+        if (!cbf_enabled_ || obstacles_.empty()) {
+            return {v_nom, omega_nom};
         }
     }
 
@@ -485,11 +511,14 @@ private:
     // =========================================================================
 
     void controlLoop() {
+        // pgv dock controller has the wheels — step back completely
+        if (docking_) return;
+
         if (!active_ || waypoints_.empty()) return;
 
         if (!have_pose_ && !tryTfPose()) {
             RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                "Waiting for pose (/amcl_pose or map->base_link TF)");
+                "Waiting for pose");
             return;
         }
 

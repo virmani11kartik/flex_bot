@@ -24,15 +24,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 
-try:
-    from ament_index_python.packages import get_package_share_directory
-    _PKG_SHARE = get_package_share_directory("positioning_system")
-except Exception:
-    _PKG_SHARE = None
-
 DEFAULT_MARKERS_FILE = os.path.join(
-    _PKG_SHARE, "config", "markers.json"
-) if _PKG_SHARE else os.path.join(
     os.path.expanduser("~"), "flex_bot", "src",
     "positioning_system", "config", "markers.json"
 )
