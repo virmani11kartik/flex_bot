@@ -38,3 +38,6 @@ waypoint_controller:
     min_speed: 0.04             # m/s — minimum speed while moving
     map_frame: "map"
     base_frame: "base_link"
+    cbf_alpha:   1.5    # lower = starts avoiding earlier (more conservative)
+    r_robot:     0.25   # set to actual robot radius in meters
+    cbf_enabled: true   # set false to disable CBF and revert to original behavior
