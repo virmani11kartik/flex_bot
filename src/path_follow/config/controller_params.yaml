@@ -23,6 +23,7 @@ astar_planner:
 # ── Waypoint Controller ───────────────────────────────────────────────────────
 waypoint_controller:
   ros__parameters:
+<<<<<<< HEAD
     # Robot geometry — TUNE to match your actual robot
     wheel_radius: 0.0765        # m — measure your wheel radius
     wheel_base: 0.5000          # m — full track width left-to-right wheel contact
@@ -61,3 +62,28 @@ waypoint_controller:
     # Inflation applied to each lidar hit in the local map.
     # Should be >= robot_radius so the robot body clears obstacles, not just centre.
     inflation_radius: 0.25      # m
+=======
+    # Robot geometry
+    wheel_radius:     0.0765
+    wheel_base:       0.5000
+    max_wheel_rads:   3.0
+    # Motion
+    linear_speed:     0.15
+    max_omega:        0.8
+    goal_tolerance:   0.4
+    final_tolerance:  0.10
+    heading_kp:       1.2
+    lookahead:        0.4
+    slow_dist:        0.8
+    min_speed:        0.04
+    map_frame:        "map"
+    base_frame:       "base_link"
+    # CBF safety filter
+    cbf_enabled:          true   # false = revert to pure pursuit instantly
+    cbf_alpha:            1.0    # was 1.5 — less conservative
+    r_robot:              0.30   # your robot footprint radius m
+    cbf_influence_dist:   2.5    # ignore obstacles beyond this distance m
+    cbf_forward_cone:     0.2    # cos(78°) — ignore obstacles outside forward cone
+    cbf_path_half_width:  0.35   # lateral sweep width m — ignore far-side obstacles
+    cbf_lookahead_t:      0.5    # lookahead time for omega steering correction s
+>>>>>>> 26c052e (cbf connstraints loosen)
