@@ -1,8 +1,8 @@
 # ── PRM Builder ───────────────────────────────────────────────────────────────
 prm_builder:
   ros__parameters:
-    samples: 8000               # number of random nodes to sample
-    k_neighbors: 6              # PRM* connectivity target
+    samples: 200000               # number of random nodes to sample
+    k_neighbors: 8              # PRM* connectivity target
     inflation_radius_m: 0.60    # obstacle inflation (robot radius + safety margin)
     occupied_threshold: 40      # occupancy value considered blocked
     allow_unknown: false
@@ -45,5 +45,5 @@ waypoint_controller:
     cbf_influence_dist:   0.5    # ignore obstacles beyond this distance m
     cbf_forward_cone:     0.35    # cos(78°) — ignore obstacles outside forward cone
     cbf_path_half_width:  0.30   # lateral sweep width m — ignore far-side obstacles
-    cbf_lookahead_t:      0.3    # lookahead time for omega steering correction s
-    cbf_ttc_threshold:    3.0
+    cbf_lookahead_t:      1.0    # lookahead time for omega steering correction s
+    cbf_ttc_threshold:    5.0
