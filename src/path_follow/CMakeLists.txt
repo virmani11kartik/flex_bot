@@ -21,6 +21,7 @@ find_package(tf2_ros REQUIRED)
 find_package(tf2_geometry_msgs REQUIRED)
 find_package(Eigen3 REQUIRED)
 find_package(obstacle_detector REQUIRED)
+find_package(osqp REQUIRED HINTS /usr/local/lib/cmake/osqp)
 # nanoflann is header-only; find it or fall back to system include
 find_package(nanoflann QUIET)
 if(NOT nanoflann_FOUND)
@@ -66,11 +67,20 @@ add_executable(waypoint_controller src/waypoint_controller.cpp)
 ament_target_dependencies(waypoint_controller ${COMMON_DEPS})
 target_link_libraries(waypoint_controller Eigen3::Eigen)
 
+add_executable(mpc_waypoint_controller
+  src/mpc_waypoint_controller.cpp)
+ament_target_dependencies(mpc_waypoint_controller
+  ${COMMON_DEPS} obstacle_detector)
+target_link_libraries(mpc_waypoint_controller
+  Eigen3::Eigen
+  osqp::osqp)
+
 # ── Install ──────────────────────────────────────────────────────────────────
 install(TARGETS
   prm_builder
   astar_search
   waypoint_controller
+  mpc_waypoint_controller
   DESTINATION lib/${PROJECT_NAME}
 )
 
