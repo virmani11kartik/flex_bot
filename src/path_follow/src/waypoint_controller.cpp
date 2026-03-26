@@ -65,6 +65,7 @@ public:
         cbf_forward_cone_   = declare_parameter<double>("cbf_forward_cone",    0.2);
         cbf_path_half_width_= declare_parameter<double>("cbf_path_half_width", 0.35);
         cbf_lookahead_t_    = declare_parameter<double>("cbf_lookahead_t",     0.5);
+        cbf_ttc_threshold_ = declare_parameter<double>("cbf_ttc_threshold", 3.0);
 
         tf_buffer_   = std::make_shared<tf2_ros::Buffer>(this->get_clock());
         tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
@@ -140,6 +141,7 @@ private:
     double cbf_forward_cone_;
     double cbf_path_half_width_;
     double cbf_lookahead_t_;
+    double cbf_ttc_threshold_;
 
     // ── state ────────────────────────────────────────────────────────────────
     double pose_x_{0}, pose_y_{0}, pose_yaw_{0};
@@ -148,7 +150,7 @@ private:
     bool   have_goal_{false};
     double last_dist_to_goal_{999.0};
     rclcpp::Time last_progress_time_;
-    const double stuck_timeout_s_{3.0};
+    const double stuck_timeout_s_{1.0};
 
     geometry_msgs::msg::PoseStamped current_goal_;
 
@@ -278,31 +280,41 @@ private:
         for (const auto &obs : obstacles_) {
             const double ox  = obs.center.x;
             const double oy  = obs.center.y;
+            const double ovx = obs.velocity.x;
+            const double ovy = obs.velocity.y;
 
-            // vector from robot to obstacle
-            const double dx = ox - px;
-            const double dy = oy - py;
+            const double dx   = ox - px;
+            const double dy   = oy - py;
             const double dist = std::hypot(dx, dy) + 1e-6;
 
             // Gate 3: influence distance
             if (dist > cbf_influence_dist_) continue;
 
-            // forward projection: +1 = directly ahead, -1 = directly behind
+            // forward projection
             const double fwd_proj = (dx * fx + dy * fy) / dist;
 
-            // Gate 1: forward cone — ignore behind and far-side obstacles
+            // Gate 1: forward cone
             if (fwd_proj < cbf_forward_cone_) continue;
 
-            // lateral distance: how far to the side the obstacle is
+            // lateral gate
             const double lat_dist = std::fabs(dx * lx + dy * ly);
             const double r_safe   = obs.radius + r_robot_;
 
-            // Gate 2: lateral gate — only if obstacle is in robot's swept path
+            // Gate 2: lateral gate
             if (lat_dist > r_safe + cbf_path_half_width_) continue;
 
-            active.push_back({ox, oy,
-                              obs.velocity.x, obs.velocity.y,
-                              r_safe, fwd_proj});
+            // Gate 4: TTC gate — obstacle closing speed
+            // positive = obstacle moving toward robot, negative = moving away
+            const double obs_closing = -(ovx * dx/dist + ovy * dy/dist);
+            const double closing_speed = v_nom * fwd_proj + obs_closing;
+            const double clearance = std::max(0.0, dist - r_safe);
+            const double ttc = (closing_speed > 0.01)
+                            ? clearance / closing_speed
+                            : 999.0;  // not closing → effectively infinite TTC
+
+            if (ttc > cbf_ttc_threshold_) continue;  // far away and not closing → ignore
+
+            active.push_back({ox, oy, ovx, ovy, r_safe, fwd_proj});
         }
 
         // no relevant obstacles — return nominal unchanged

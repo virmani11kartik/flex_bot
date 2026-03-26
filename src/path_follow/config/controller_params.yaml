@@ -42,7 +42,8 @@ waypoint_controller:
     cbf_enabled:          true   # false = revert to pure pursuit instantly
     cbf_alpha:            1.0    # was 1.5 — less conservative
     r_robot:              0.30   # your robot footprint radius m
-    cbf_influence_dist:   2.5    # ignore obstacles beyond this distance m
-    cbf_forward_cone:     0.2    # cos(78°) — ignore obstacles outside forward cone
-    cbf_path_half_width:  0.35   # lateral sweep width m — ignore far-side obstacles
-    cbf_lookahead_t:      0.5    # lookahead time for omega steering correction s
+    cbf_influence_dist:   0.5    # ignore obstacles beyond this distance m
+    cbf_forward_cone:     0.35    # cos(78°) — ignore obstacles outside forward cone
+    cbf_path_half_width:  0.30   # lateral sweep width m — ignore far-side obstacles
+    cbf_lookahead_t:      0.3    # lookahead time for omega steering correction s
+    cbf_ttc_threshold:    3.0
