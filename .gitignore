@@ -32,3 +32,4 @@ Thumbs.db
 # pycache stuff
 
 ./src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/
+src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/
