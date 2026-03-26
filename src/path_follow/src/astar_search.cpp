@@ -164,8 +164,10 @@ private:
         }
     }
 
-    bool nodeBlockedByDynamicObs(double nx, double ny, double safety_r = 0.6) const {
+    bool nodeBlockedByDynamicObs(double nx, double ny, double safety_r = 2.0) const {
         for (const auto& obs : dynamic_obstacles_) {
+            double speed = std::hypot(obs.velocity.x, obs.velocity.y);
+            if (speed < 0.08) continue;
             double dx = nx - obs.center.x;
             double dy = ny - obs.center.y;
             double dist = std::sqrt(dx*dx + dy*dy);
