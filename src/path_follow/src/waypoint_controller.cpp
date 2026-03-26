@@ -164,6 +164,15 @@ public:
                 docking_ = (msg->data.rfind("DOCKING", 0) == 0 ||
                             msg->data.rfind("DOCKED",  0) == 0);
             });
+        
+        goal_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/goal_pose", 1,
+            [this](geometry_msgs::msg::PoseStamped::SharedPtr g){
+                current_goal_ = *g;
+                have_goal_ = true;
+                last_dist_to_goal_ = 999.0;
+                last_progress_time_ = now();
+            });
 
         // ── publishers ─────────────────────────────────────────────────────
         left_pub_   = create_publisher<std_msgs::msg::Float64>("/left_wheel/cmd_vel",  1);
@@ -798,6 +807,24 @@ private:
         double dist_final = dist2d(pose_x_, pose_y_,
                                    waypoints_.back().pose.position.x,
                                    waypoints_.back().pose.position.y);
+        if (have_goal_ && active_ && !obstacles_.empty()) {
+            if (dist_final < last_dist_to_goal_ - 0.05) {
+                // making progress
+                last_dist_to_goal_  = dist_final;
+                last_progress_time_ = now();
+            } else {
+                double stuck_secs = (now() - last_progress_time_).seconds();
+                if (stuck_secs > stuck_timeout_s_) {
+                    RCLCPP_WARN(get_logger(),
+                        "Stuck for %.1fs with obstacles present — triggering replan",
+                        stuck_secs);
+                    // republish same goal → A* replans with current dynamic obstacles
+                    goal_pub_->publish(current_goal_);
+                    last_progress_time_ = now();  // reset timer
+                }
+            }
+        }
+
         if (dist_final < final_tolerance_) {
             RCLCPP_INFO(get_logger(), "Goal reached!");
             stopRobot();
