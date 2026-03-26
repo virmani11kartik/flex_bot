@@ -9,7 +9,8 @@
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <tf2/utils.h>
-
+#include <obstacle_detector/msg/obstacles.hpp>
+#include <obstacle_detector/msg/circle_obstacle.hpp>
 #include <queue>
 #include <unordered_map>
 #include <unordered_set>
@@ -91,6 +92,12 @@ public:
         start_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
             "/initialpose", 1, [this](geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr s){ onStart(s); });
 
+        obs_sub_ = create_subscription<obstacle_detector::msg::Obstacles>(
+            "/tracked_obstacles", rclcpp::QoS(10).best_effort(),
+            [this](obstacle_detector::msg::Obstacles::SharedPtr msg){
+                dynamic_obstacles_ = msg->circles;
+            });
+
         if (use_prm_) {
             prm_nodes_sub_ = create_subscription<visualization_msgs::msg::Marker>(
                 "/prm/nodes", rclcpp::QoS(1).transient_local().reliable(),
@@ -121,6 +128,7 @@ private:
     struct PrmNode { double x, y; };
     std::vector<PrmNode> prm_nodes_;
     std::vector<std::vector<int>> prm_adj_;
+    std::vector<obstacle_detector::msg::CircleObstacle> dynamic_obstacles_;
     bool have_prm_ = false;
 
     rclcpp::Subscription<nav_msgs::msg::OccupancyGrid>::SharedPtr map_sub_;
@@ -128,6 +136,7 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr start_sub_;
     rclcpp::Subscription<visualization_msgs::msg::Marker>::SharedPtr prm_nodes_sub_;
     rclcpp::Subscription<std_msgs::msg::Int32MultiArray>::SharedPtr prm_adj_sub_;
+    rclcpp::Subscription<obstacle_detector::msg::Obstacles>::SharedPtr obs_sub_;
     
     rclcpp::Publisher<nav_msgs::msg::Path>::SharedPtr path_pub_;
     rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr explored_pub_;
@@ -153,6 +162,16 @@ private:
             out = start_;
             return true;
         }
+    }
+
+    bool nodeBlockedByDynamicObs(double nx, double ny, double safety_r = 0.6) const {
+        for (const auto& obs : dynamic_obstacles_) {
+            double dx = nx - obs.center.x;
+            double dy = ny - obs.center.y;
+            double dist = std::sqrt(dx*dx + dy*dy);
+            if (dist < obs.radius + safety_r) return true;
+        }
+        return false;
     }
 
     struct GridNode {
@@ -456,9 +475,8 @@ private:
             }
 
             for (int neighbor_idx : prm_adj_[current.idx]) {
-                if (closed_set.find(neighbor_idx) != closed_set.end()) {
-                    continue;
-                }
+                if (closed_set.find(neighbor_idx) != closed_set.end()) continue;
+                if (nodeBlockedByDynamicObs(prm_nodes_[neighbor_idx].x, prm_nodes_[neighbor_idx].y)) continue;
 
                 double edge_cost = euclideanDistance(prm_nodes_[current.idx].x, prm_nodes_[current.idx].y,
                                                      prm_nodes_[neighbor_idx].x, prm_nodes_[neighbor_idx].y);

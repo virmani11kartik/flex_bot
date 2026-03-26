@@ -97,11 +97,21 @@ public:
                 docking_ = (msg->data.rfind("DOCKING", 0) == 0 ||
                             msg->data.rfind("DOCKED",  0) == 0);
             });
+        
+        goal_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/goal_pose", 1,
+            [this](geometry_msgs::msg::PoseStamped::SharedPtr g){
+                current_goal_ = *g;
+                have_goal_ = true;
+                last_dist_to_goal_ = 999.0;
+                last_progress_time_ = now();
+            });
 
         // ── publishers ─────────────────────────────────────────────────────
         left_pub_   = create_publisher<std_msgs::msg::Float64>("/left_wheel/cmd_vel",  1);
         right_pub_  = create_publisher<std_msgs::msg::Float64>("/right_wheel/cmd_vel", 1);
         marker_pub_ = create_publisher<visualization_msgs::msg::Marker>("/controller/target", 1);
+        goal_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/goal_pose", 1);
 
         control_timer_ = create_wall_timer(
             std::chrono::milliseconds(50),
@@ -135,6 +145,12 @@ private:
     double pose_x_{0}, pose_y_{0}, pose_yaw_{0};
     bool   have_pose_{false};
     bool   docking_{false};
+    bool   have_goal_{false};
+    double last_dist_to_goal_{999.0};
+    rclcpp::Time last_progress_time_;
+    const double stuck_timeout_s_{3.0};
+
+    geometry_msgs::msg::PoseStamped current_goal_;
 
     std::vector<geometry_msgs::msg::PoseStamped> waypoints_;
     size_t wp_idx_{0};
@@ -146,12 +162,14 @@ private:
     std::shared_ptr<tf2_ros::Buffer>            tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_sub_;
-    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr    path_sub_;
-    rclcpp::Subscription<obstacle_detector::msg::Obstacles>::SharedPtr obs_sub_;
-    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr  status_sub_;
-    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr    left_pub_, right_pub_;
-    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr marker_pub_;
-    rclcpp::TimerBase::SharedPtr control_timer_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr                           path_sub_;
+    rclcpp::Subscription<obstacle_detector::msg::Obstacles>::SharedPtr             obs_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr                         status_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr               goal_sub_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr                           left_pub_, right_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr                  marker_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr                  goal_pub_;
+    rclcpp::TimerBase::SharedPtr                                                   control_timer_;
 
     // ── utilities ────────────────────────────────────────────────────────────
     static double quatToYaw(double x, double y, double z, double w) {
@@ -435,6 +453,24 @@ private:
         double dist_final = dist2d(pose_x_, pose_y_,
                                    waypoints_.back().pose.position.x,
                                    waypoints_.back().pose.position.y);
+        if (have_goal_ && active_ && !obstacles_.empty()) {
+            if (dist_final < last_dist_to_goal_ - 0.05) {
+                // making progress
+                last_dist_to_goal_  = dist_final;
+                last_progress_time_ = now();
+            } else {
+                double stuck_secs = (now() - last_progress_time_).seconds();
+                if (stuck_secs > stuck_timeout_s_) {
+                    RCLCPP_WARN(get_logger(),
+                        "Stuck for %.1fs with obstacles present — triggering replan",
+                        stuck_secs);
+                    // republish same goal → A* replans with current dynamic obstacles
+                    goal_pub_->publish(current_goal_);
+                    last_progress_time_ = now();  // reset timer
+                }
+            }
+        }
+
         if (dist_final < final_tolerance_) {
             RCLCPP_INFO(get_logger(), "Goal reached!");
             stopRobot();

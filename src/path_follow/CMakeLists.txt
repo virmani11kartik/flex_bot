@@ -59,7 +59,7 @@ endif()
 
 # ── astar_search ────────────────────────────────────────────────────────────
 add_executable(astar_search src/astar_search.cpp)
-ament_target_dependencies(astar_search ${COMMON_DEPS})
+ament_target_dependencies(astar_search ${COMMON_DEPS} obstacle_detector)
 
 # ── waypoint_controller ──────────────────────────────────────────────────────
 add_executable(waypoint_controller src/waypoint_controller.cpp)
