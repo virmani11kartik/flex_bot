@@ -7,43 +7,35 @@ from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-
 def generate_launch_description():
-    pkg_share = get_package_share_directory("flex_bot_bringup")
+    pkg_share      = get_package_share_directory("flex_bot_bringup")
     wheel_odom_pkg = get_package_share_directory("flex_bot_odometry")
 
-    use_rviz = LaunchConfiguration("use_rviz")
-
-    rviz_config = os.path.join(pkg_share, "rviz", "bringup.rviz")
+    use_rviz       = LaunchConfiguration("use_rviz")
+    rviz_config    = os.path.join(pkg_share, "rviz", "bringup.rviz")
     amcl_params_file = os.path.join(pkg_share, "config", "amcl.yaml")
-
-    # This resolves to the installed package path automatically
-    # Works on any machine after colcon build + source
-    map_yaml_path = os.path.join(pkg_share, "maps", "my_map.yaml")
+    map_yaml_path  = os.path.join(pkg_share, "maps", "my_map.yaml")
 
     wheel_odom = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(wheel_odom_pkg, "launch", "wheel_odom.launch.py")
-        )
-    )
+            os.path.join(wheel_odom_pkg, "launch", "wheel_odom.launch.py")))
 
     sensors = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(pkg_share, "launch", "bringup_sensors.launch.py")
-        )
-    )
+            os.path.join(pkg_share, "launch", "bringup_sensors.launch.py")))
 
     static_tfs = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(pkg_share, "launch", "static_tfs.launch.py")
-        )
-    )
+            os.path.join(pkg_share, "launch", "static_tfs.launch.py")))
 
     ekf = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(pkg_share, "launch", "bringup_state_estimation.launch.py")
-        )
-    )
+            os.path.join(pkg_share, "launch", "bringup_state_estimation.launch.py")))
+
+    # ── obstacle detection (delayed — waits for tf tree to settle) ──────────
+    obstacle_detection = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(pkg_share, "launch", "obstacle_detection.launch.py")))
 
     map_server = Node(
         package="nav2_map_server",
@@ -52,17 +44,15 @@ def generate_launch_description():
         output="screen",
         parameters=[{
             "use_sim_time": False,
-            "yaml_filename": map_yaml_path,  # resolved at launch time
-        }],
-    )
+            "yaml_filename": map_yaml_path,
+        }])
 
     amcl = Node(
         package="nav2_amcl",
         executable="amcl",
         name="amcl",
         output="screen",
-        parameters=[amcl_params_file],
-    )
+        parameters=[amcl_params_file])
 
     lifecycle_manager = Node(
         package="nav2_lifecycle_manager",
@@ -73,8 +63,7 @@ def generate_launch_description():
             "use_sim_time": False,
             "autostart": True,
             "node_names": ["map_server", "amcl"],
-        }],
-    )
+        }])
 
     rviz = Node(
         package="rviz2",
@@ -82,21 +71,22 @@ def generate_launch_description():
         name="rviz2",
         output="screen",
         arguments=["-d", rviz_config],
-        condition=IfCondition(use_rviz),
-    )
+        condition=IfCondition(use_rviz))
 
     return LaunchDescription([
         DeclareLaunchArgument(
             "use_rviz",
             default_value="true",
-            description="Whether to launch RViz",
-        ),
-        sensors,
-        static_tfs,
-        wheel_odom,
-        ekf,
-        map_server,
-        amcl,
-        lifecycle_manager,
+            description="Whether to launch RViz"),
+
+        # ── launch order ──────────────────────────────────────────────────
+        sensors,           # lidar first — tf tree needs scan frames
+        static_tfs,        # static transforms
+        wheel_odom,        # odom → base_link
+        ekf,               # filtered odometry
+        map_server,        # map frame
+        amcl,              # map → odom localization
+        lifecycle_manager, # activates map_server + amcl
         rviz,
+        obstacle_detection,
     ])
