@@ -14,8 +14,7 @@ const NO_FACE_TIMEOUT = 15000;    // 15 seconds - Return to home when face not d
 // Face Detection Settings
 const FACE_DETECTION_CONFIG = {
   minDetectionConfidence: 0.8,    // Minimum confidence for face detection (0-1)
-  gazeThreshold: 0.6,             // How centered the face needs to be (0-1, higher = stricter)
-  requiredGazeDuration: 2000,     // Time in ms person must look before engaging (2 seconds)
+  requiredGazeDuration: 2000,     // Time in ms a face must remain visible before engaging
   faceSizeThreshold: 0.12,        // Minimum face size to prevent distant detections (0-1)
   detectionInterval: 100,         // Time between detection checks in ms
 };
@@ -177,7 +176,6 @@ class FaceDetectorManager {
     // Configuration
     this.config = {
       minDetectionConfidence: config.minDetectionConfidence || 0.8,
-      gazeThreshold: config.gazeThreshold || 0.7,
       requiredGazeDuration: config.requiredGazeDuration || 2000,
       faceSizeThreshold: config.faceSizeThreshold || 0.15,
       detectionInterval: config.detectionInterval || 100,
@@ -269,10 +267,10 @@ class FaceDetectorManager {
     
     this.state.currentFace = metrics;
     
-    // Check if looking at screen
-    const isLooking = this.isLookingAtScreen(metrics);
+    // Trigger on sustained face presence instead of gaze direction
+    const isFacePresent = this.isFacePresent(metrics);
     
-    if (isLooking) {
+    if (isFacePresent) {
       this.handleLooking(now);
     } else {
       this.handleNotLooking();
@@ -320,7 +318,7 @@ class FaceDetectorManager {
     };
   }
   
-  isLookingAtScreen(metrics) {
+  isFacePresent(metrics) {
     // Check confidence
     if (metrics.confidence < this.config.minDetectionConfidence) {
       return false;
@@ -330,15 +328,8 @@ class FaceDetectorManager {
     if (metrics.size < this.config.faceSizeThreshold) {
       return false;
     }
-    
-    // Check if centered
-    const horizontalCenter = Math.abs(metrics.centerX - 0.5);
-    const verticalCenter = Math.abs(metrics.centerY - 0.5);
-    
-    const threshold = (1 - this.config.gazeThreshold) / 2;
-    const isCentered = horizontalCenter < threshold && verticalCenter < threshold;
-    
-    return isCentered;
+
+    return true;
   }
   
   handleLooking(now) {

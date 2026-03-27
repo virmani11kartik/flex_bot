@@ -30,6 +30,6 @@ Thumbs.db
 *.swp
 
 # pycache stuff
-
-./src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/
 src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/
+src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/_init__.cpython-310.pyc
+src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/bridge.cpython-310.pyc
