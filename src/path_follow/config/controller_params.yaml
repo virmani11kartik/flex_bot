@@ -19,6 +19,7 @@ astar_planner:
     use_tf_start: true
     map_frame: "map"
     base_frame: "base_link"
+    dynamic_obs_clearance: 0.74 #(PURPLE CIRCLE)
 
 # ── Waypoint Controller ───────────────────────────────────────────────────────
 waypoint_controller:
@@ -69,7 +70,7 @@ waypoint_controller:
     max_wheel_rads:   3.0
     # Motion
     linear_speed:     0.15
-    max_omega:        0.8
+    max_omega:        0.35
     goal_tolerance:   0.4
     final_tolerance:  0.10
     heading_kp:       1.2
@@ -81,9 +82,57 @@ waypoint_controller:
     # CBF safety filter
     cbf_enabled:          true   # false = revert to pure pursuit instantly
     cbf_alpha:            1.0    # was 1.5 — less conservative
+<<<<<<< HEAD
     r_robot:              0.30   # your robot footprint radius m
     cbf_influence_dist:   2.5    # ignore obstacles beyond this distance m
     cbf_forward_cone:     0.2    # cos(78°) — ignore obstacles outside forward cone
     cbf_path_half_width:  0.35   # lateral sweep width m — ignore far-side obstacles
     cbf_lookahead_t:      0.5    # lookahead time for omega steering correction s
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+    r_robot:              0.35   # your robot footprint radius m (RED CIRCLE)
+    cbf_influence_dist:   0.60    # ignore obstacles beyond this distance m  (ORANGE CIRCLE)
+    cbf_forward_cone:     0.35    # cos(78°) — ignore obstacles outside forward cone
+    cbf_path_half_width:  0.30   # lateral sweep width m — ignore far-side obstacles
+    cbf_lookahead_t:      1.0    # lookahead time for omega steering correction s
+    cbf_ttc_threshold:    5.0
+    # replan
+    stuck_timeout_s:      1.0
+    replan_debounce_s:    1.0      # ← new
+    path_check_horizon:   15       # ← new — waypoints ahead to check
+    astar_clearance_viz:  0.74     # ← must match astar_planner dynamic_obs_clearance
+
+mpc_waypoint_controller:
+  ros__parameters:
+    # robot geometry (same as waypoint_controller)
+    wheel_radius:     0.0765
+    wheel_base:       0.5000
+    max_wheel_rads:   3.0
+    linear_speed:     0.15
+    max_omega:        0.8
+    goal_tolerance:   0.4
+    final_tolerance:  0.10
+    lookahead:        0.4
+    slow_dist:        0.8
+    min_speed:        0.04
+    map_frame:        "map"
+    base_frame:       "base_link"
+    # MPC
+    mpc_horizon:      20       # N steps
+    mpc_dt:           0.10     # seconds per step
+    mpc_w_pos:        5.0      # path tracking weight
+    mpc_w_theta:      1.0      # heading weight
+    mpc_w_v:          0.1      # speed penalty
+    mpc_w_dv:         0.5      # acceleration smoothness
+    mpc_w_dw:         0.3      # turn smoothness
+    # CBF hard constraints
+    cbf_alpha:            1.0
+    r_robot:              0.30
+    cbf_influence_dist:   1.5
+    cbf_forward_cone:     0.2
+    cbf_path_half_width:  0.30
+    cbf_lookahead_t:      0.5
+    # stuck detection
+    stuck_timeout_s:      3.0
+    max_replans:          3
+>>>>>>> 1e701e5 (obstacle avoidance tuned)

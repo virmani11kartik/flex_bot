@@ -2,10 +2,15 @@
 #include <nav_msgs/msg/path.hpp>
 #include <nav_msgs/msg/odometry.hpp>
 #include <std_msgs/msg/float64.hpp>
+<<<<<<< HEAD
 #include <sensor_msgs/msg/laser_scan.hpp>
+=======
+#include <std_msgs/msg/string.hpp>
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
+#include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
@@ -23,6 +28,7 @@
  *   WAITING     — obstacle in corridor, holding position
  *   REPLANNING  — obstacle persisted > obstacle_wait_s, re-published goal to A*
  *
+<<<<<<< HEAD
 <<<<<<< HEAD
  * State source (priority order):
  *   1. /amcl_pose  (PoseWithCovarianceStamped) — AMCL localization
@@ -72,12 +78,28 @@
  *   cbf_path_half_width  (double, 0.35)  lateral gate half-width m
  *   cbf_lookahead_t      (double, 0.5)   lookahead time for omega correction s
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+ * Replanning:
+ *   Proactive — obstacle detected on current path → replan immediately
+ *   Reactive  — robot stuck for stuck_timeout_s_ → replan as fallback
+ *
+ * Visualization:
+ *   /cbf/visualization (MarkerArray):
+ *     Red    disc  — collision boundary  (obs.radius + r_robot)
+ *     Orange disc  — CBF active zone     (obs.radius + cbf_influence_dist)
+ *     Purple disc  — A* exclusion zone   (obs.radius + astar_clearance_viz)
+ *     Yellow arrow — obstacle velocity
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
  */
 class WaypointController : public rclcpp::Node {
 public:
     WaypointController() : rclcpp::Node("waypoint_controller") {
 
+<<<<<<< HEAD
         // ── Existing parameters ──────────────────────────────────────────────
+=======
+        // ── robot geometry ─────────────────────────────────────────────────
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
         wheel_radius_    = declare_parameter<double>("wheel_radius",    0.076);
         wheel_base_      = declare_parameter<double>("wheel_base",      0.50);
         max_wheel_rads_  = declare_parameter<double>("max_wheel_rads",  3.0);
@@ -102,6 +124,7 @@ public:
         inflation_radius_     = declare_parameter<double>("inflation_radius",          0.25);
 =======
         // ── CBF params ─────────────────────────────────────────────────────
+<<<<<<< HEAD
         cbf_alpha_          = declare_parameter<double>("cbf_alpha",           1.0);
         r_robot_            = declare_parameter<double>("r_robot",             0.25);
         cbf_enabled_        = declare_parameter<bool>  ("cbf_enabled",         true);
@@ -110,6 +133,26 @@ public:
         cbf_path_half_width_= declare_parameter<double>("cbf_path_half_width", 0.35);
         cbf_lookahead_t_    = declare_parameter<double>("cbf_lookahead_t",     0.5);
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+        cbf_alpha_           = declare_parameter<double>("cbf_alpha",           1.0);
+        r_robot_             = declare_parameter<double>("r_robot",             0.25);
+        cbf_enabled_         = declare_parameter<bool>  ("cbf_enabled",         true);
+        cbf_influence_dist_  = declare_parameter<double>("cbf_influence_dist",  0.5);
+        cbf_forward_cone_    = declare_parameter<double>("cbf_forward_cone",    0.2);
+        cbf_path_half_width_ = declare_parameter<double>("cbf_path_half_width", 0.30);
+        cbf_lookahead_t_     = declare_parameter<double>("cbf_lookahead_t",     0.5);
+        cbf_ttc_threshold_   = declare_parameter<double>("cbf_ttc_threshold",   3.0);
+
+        // ── replan params ──────────────────────────────────────────────────
+        stuck_timeout_s_     = declare_parameter<double>("stuck_timeout_s",     1.0);
+        // astar_clearance_viz must match dynamic_obs_clearance in astar_planner
+        // used for: proactive replan intersection check + purple circle viz
+        astar_clearance_viz_ = declare_parameter<double>("astar_clearance_viz", 1.9);
+        // how many waypoints ahead to check for obstacle intersection
+        path_check_horizon_  = declare_parameter<int>   ("path_check_horizon",  30);
+        // debounce: minimum seconds between replans
+        replan_debounce_s_   = declare_parameter<double>("replan_debounce_s",   1.0);
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
 
         // ── Initialise local occupancy grid ──────────────────────────────────
         initLocalMap();
@@ -122,8 +165,13 @@ public:
         // ── Subscriptions ────────────────────────────────────────────────────
 =======
         // ── subscribers ────────────────────────────────────────────────────
+<<<<<<< HEAD
 >>>>>>> 26c052e (cbf connstraints loosen)
         amcl_sub_ = create_subscription<geometry_msgs::msg::PoseWithCovarianceStamped>(
+=======
+        amcl_sub_ = create_subscription<
+            geometry_msgs::msg::PoseWithCovarianceStamped>(
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
             "/amcl_pose", rclcpp::QoS(5).reliable(),
             [this](geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
                 const auto &p = msg->pose.pose;
@@ -164,21 +212,35 @@ public:
                 docking_ = (msg->data.rfind("DOCKING", 0) == 0 ||
                             msg->data.rfind("DOCKED",  0) == 0);
             });
-        
+
         goal_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
             "/goal_pose", 1,
             [this](geometry_msgs::msg::PoseStamped::SharedPtr g){
-                current_goal_ = *g;
-                have_goal_ = true;
-                last_dist_to_goal_ = 999.0;
+                current_goal_       = *g;
+                have_goal_          = true;
+                last_dist_to_goal_  = 999.0;
                 last_progress_time_ = now();
+                last_replan_time_   = now();
             });
 
         // ── publishers ─────────────────────────────────────────────────────
+<<<<<<< HEAD
         left_pub_   = create_publisher<std_msgs::msg::Float64>("/left_wheel/cmd_vel",  1);
         right_pub_  = create_publisher<std_msgs::msg::Float64>("/right_wheel/cmd_vel", 1);
         marker_pub_ = create_publisher<visualization_msgs::msg::Marker>("/controller/target", 1);
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+        left_pub_    = create_publisher<std_msgs::msg::Float64>(
+            "/left_wheel/cmd_vel",  1);
+        right_pub_   = create_publisher<std_msgs::msg::Float64>(
+            "/right_wheel/cmd_vel", 1);
+        marker_pub_  = create_publisher<visualization_msgs::msg::Marker>(
+            "/controller/target", 1);
+        goal_pub_    = create_publisher<geometry_msgs::msg::PoseStamped>(
+            "/goal_pose", 1);
+        cbf_viz_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>(
+            "/cbf/visualization", 1);
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
 
         // NEW: publish local map for debugging in RViz
         local_map_pub_ = create_publisher<visualization_msgs::msg::Marker>("/controller/local_map", 1);
@@ -187,6 +249,11 @@ public:
         control_timer_ = create_wall_timer(
             std::chrono::milliseconds(50),
             [this](){ controlLoop(); });
+
+        // visualization runs independently — always shows markers
+        viz_timer_ = create_wall_timer(
+            std::chrono::milliseconds(100),
+            [this](){ publishCbfMarkers(); });
 
         RCLCPP_INFO(get_logger(),
 <<<<<<< HEAD
@@ -205,10 +272,10 @@ private:
     // ── Existing parameters ───────────────────────────────────────────────────
 =======
             "WaypointController+CBF ready | "
-            "r=%.3fm L=%.3fm v=%.2fm/s alpha=%.2f r_robot=%.2fm "
-            "cone=%.2f influence=%.1fm",
-            wheel_radius_, wheel_base_, linear_speed_,
-            cbf_alpha_, r_robot_, cbf_forward_cone_, cbf_influence_dist_);
+            "v=%.2fm/s alpha=%.2f r_robot=%.2fm influence=%.2fm "
+            "astar_clearance=%.2fm",
+            linear_speed_, cbf_alpha_, r_robot_,
+            cbf_influence_dist_, astar_clearance_viz_);
     }
 
 private:
@@ -240,11 +307,25 @@ private:
     double cbf_lookahead_t_;
     double cbf_ttc_threshold_;
 
+    double stuck_timeout_s_;
+    double astar_clearance_viz_;
+    int    path_check_horizon_;
+    double replan_debounce_s_;
+
     // ── state ────────────────────────────────────────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
     double pose_x_{0}, pose_y_{0}, pose_yaw_{0};
     bool   have_pose_{false};
     bool   docking_{false};
+<<<<<<< HEAD
+=======
+    bool   have_goal_{false};
+    double last_dist_to_goal_{999.0};
+    rclcpp::Time last_progress_time_;
+    rclcpp::Time last_replan_time_;
+
+    geometry_msgs::msg::PoseStamped current_goal_;
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
 
     // ── Path state ────────────────────────────────────────────────────────────
     std::vector<geometry_msgs::msg::PoseStamped> waypoints_;
@@ -276,6 +357,21 @@ private:
 >>>>>>> 26c052e (cbf connstraints loosen)
     std::shared_ptr<tf2_ros::Buffer>            tf_buffer_;
     std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+<<<<<<< HEAD
+=======
+
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr                           path_sub_;
+    rclcpp::Subscription<obstacle_detector::msg::Obstacles>::SharedPtr             obs_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr                         status_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr               goal_sub_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr                           left_pub_, right_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr                  marker_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr                  goal_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr             cbf_viz_pub_;
+    rclcpp::TimerBase::SharedPtr                                                   control_timer_;
+    rclcpp::TimerBase::SharedPtr                                                   viz_timer_;
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
 
     rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_sub_;
 <<<<<<< HEAD
@@ -547,28 +643,44 @@ private:
         } catch (...) { return false; }
     }
 
-    // ── CBF-QP with directional gating ───────────────────────────────────────
-    //
-    // Gate 1 — forward cone:
-    //   Only obstacles where dot(robot_forward, robot→obs) > cbf_forward_cone_
-    //   cbf_forward_cone_ = 0.2 → within 78° of forward heading
-    //   obstacles behind or far to side are completely ignored
-    //
-    // Gate 2 — lateral distance:
-    //   Only obstacles whose lateral offset < r_safe + cbf_path_half_width_
-    //   obstacle 2m to the side won't be hit → ignore it
-    //
-    // Gate 3 — influence distance:
-    //   Only obstacles within cbf_influence_dist_ meters
-    //
-    // Directional scaling:
-    //   alpha scaled by forward_proj so side obstacles get weaker constraint
-    //   directly ahead → full alpha, 60° off → 0.3 * alpha
-    //
-    // Omega correction:
-    //   Lgh_omega includes lookahead term so turning steers away from obstacles
-    //   without this CBF only slows down, never steers around
-    //
+    // ── proactive replan check ────────────────────────────────────────────────
+    // Returns true if any obstacle's purple circle intersects the planned path
+    // ahead of the robot within path_check_horizon_ waypoints.
+    // Uses astar_clearance_viz_ as the exclusion radius — same value A* uses —
+    // so we replan exactly when A* would route around the obstacle.
+    bool pathIntersectsObstacle() {
+        if (waypoints_.empty() || obstacles_.empty()) return false;
+
+        size_t end = std::min(
+            wp_idx_ + static_cast<size_t>(path_check_horizon_),
+            waypoints_.size());
+
+        for (const auto& obs : obstacles_) {
+            double r_exclusion = obs.radius + astar_clearance_viz_;
+            for (size_t i = wp_idx_; i < end; ++i) {
+                double d = dist2d(
+                    waypoints_[i].pose.position.x,
+                    waypoints_[i].pose.position.y,
+                    obs.center.x, obs.center.y);
+                if (d < r_exclusion) return true;
+            }
+        }
+        return false;
+    }
+
+    // ── trigger replan (debounced) ────────────────────────────────────────────
+    void triggerReplan(const std::string& reason) {
+        double since_last = (now() - last_replan_time_).seconds();
+        if (since_last < replan_debounce_s_) return;   // debounce
+
+        RCLCPP_WARN(get_logger(), "Replan triggered: %s", reason.c_str());
+        goal_pub_->publish(current_goal_);
+        last_replan_time_   = now();
+        last_progress_time_ = now();
+        last_dist_to_goal_  = 999.0;
+    }
+
+    // ── CBF-QP ───────────────────────────────────────────────────────────────
     std::pair<double,double> cbfQP(double v_nom, double omega_nom) {
         if (!cbf_enabled_ || obstacles_.empty())
             return {v_nom, omega_nom};
@@ -580,17 +692,13 @@ private:
         const double px  = pose_x_;
         const double py  = pose_y_;
 
-        // robot forward unit vector in world frame
         const double fx =  std::cos(yaw);
         const double fy =  std::sin(yaw);
-        // robot left unit vector (perpendicular)
         const double lx = -std::sin(yaw);
         const double ly =  std::cos(yaw);
 
-        // ── Gate: select only relevant obstacles ──────────────────────────
         struct ActiveObs {
-            double ox, oy, ovx, ovy, r_safe;
-            double forward_proj;   // how directly ahead (0..1)
+            double ox, oy, ovx, ovy, r_safe, forward_proj;
         };
         std::vector<ActiveObs> active;
 
@@ -604,37 +712,29 @@ private:
             const double dy   = oy - py;
             const double dist = std::hypot(dx, dy) + 1e-6;
 
-            // Gate 3: influence distance
+            // Gate 1: influence distance
             if (dist > cbf_influence_dist_) continue;
 
-            // forward projection
+            // Gate 2: forward cone
             const double fwd_proj = (dx * fx + dy * fy) / dist;
-
-            // Gate 1: forward cone
             if (fwd_proj < cbf_forward_cone_) continue;
 
-            // lateral gate
+            // Gate 3: lateral gate
             const double lat_dist = std::fabs(dx * lx + dy * ly);
             const double r_safe   = obs.radius + r_robot_;
-
-            // Gate 2: lateral gate
             if (lat_dist > r_safe + cbf_path_half_width_) continue;
 
-            // Gate 4: TTC gate — obstacle closing speed
-            // positive = obstacle moving toward robot, negative = moving away
-            const double obs_closing = -(ovx * dx/dist + ovy * dy/dist);
+            // Gate 4: TTC gate
+            const double obs_closing   = -(ovx * dx/dist + ovy * dy/dist);
             const double closing_speed = v_nom * fwd_proj + obs_closing;
-            const double clearance = std::max(0.0, dist - r_safe);
+            const double clearance     = std::max(0.0, dist - r_safe);
             const double ttc = (closing_speed > 0.01)
-                            ? clearance / closing_speed
-                            : 999.0;  // not closing → effectively infinite TTC
-
-            if (ttc > cbf_ttc_threshold_) continue;  // far away and not closing → ignore
+                               ? clearance / closing_speed : 999.0;
+            if (ttc > cbf_ttc_threshold_) continue;
 
             active.push_back({ox, oy, ovx, ovy, r_safe, fwd_proj});
         }
 
-        // no relevant obstacles — return nominal unchanged
         if (active.empty()) return {v_nom, omega_nom};
 
         const int n_obs = static_cast<int>(active.size());
@@ -645,88 +745,44 @@ private:
 
         for (int i = 0; i < n_obs; ++i) {
             const auto &a = active[i];
-
-            // dx, dy: robot minus obstacle (pointing away from obstacle)
             const double dx      = px - a.ox;
             const double dy      = py - a.oy;
             const double dist_sq = dx*dx + dy*dy;
+            const double h_val   = dist_sq - a.r_safe * a.r_safe;
 
-            // CBF: h = dist² - r_safe²
-            // h > 0 → safe,  h < 0 → collision
-            const double h_val = dist_sq - a.r_safe * a.r_safe;
-
-            // Lgh_v: how forward velocity v changes h
-            //   d/dt(dist²) due to v = 2*(robot-obs)·v_robot
-            //   v_robot = v * [cos(yaw), sin(yaw)]
             const double Lgh_v = 2.0 * (dx * fx + dy * fy);
-
-            // Lgh_omega: how turning omega changes FUTURE h
-            //   Without this term CBF only slows, never steers around obstacle
-            //   Lookahead model: robot will be at p + v*t*[cos(yaw), sin(yaw)]
-            //   Turning by omega changes heading → changes future direction
-            //   Approximate: d(future_dx)/d(omega) = -v*t*sin(yaw),
-            //                d(future_dy)/d(omega) =  v*t*cos(yaw)
-            //   Lgh_omega = 2*(dx * (-v_nom*cbf_lookahead_t_*sin(yaw))
-            //                + dy * ( v_nom*cbf_lookahead_t_*cos(yaw)))
             const double Lgh_omega = 2.0 * (
                 dx * (-v_nom * cbf_lookahead_t_ * std::sin(yaw)) +
                 dy * ( v_nom * cbf_lookahead_t_ * std::cos(yaw)));
-
-            // Lfh: how obstacle's own velocity changes h
-            //   d/dt(dist²) due to obstacle moving = -2*(robot-obs)·v_obs
             const double Lfh = 2.0 * (dx * (-a.ovx) + dy * (-a.ovy));
+            const double alpha_s = cbf_alpha_ * std::max(0.3, a.forward_proj);
 
-            // Scale alpha by how directly ahead the obstacle is
-            //   directly ahead (fwd_proj=1.0) → full cbf_alpha_
-            //   60° off      (fwd_proj=0.5) → 0.5 * cbf_alpha_
-            //   at threshold (fwd_proj=0.2) → 0.3 * cbf_alpha_ (minimum)
-            const double alpha_scaled = cbf_alpha_ *
-                std::max(0.3, a.forward_proj);
-
-            // CBF constraint: Lgh*u >= -alpha*h - Lfh
-            // rewritten as:   -Lgh*u <= Lfh + alpha*h
             G(i, 0) = -Lgh_v;
             G(i, 1) = -Lgh_omega;
-            h_vec(i) = Lfh + alpha_scaled * h_val;
+            h_vec(i) = Lfh + alpha_s * h_val;
         }
 
-        // Box constraints
-        // -v     <= 0              (v >= 0, no reversing)
-        //  v     <= linear_speed_  (speed limit)
-        // -omega <= max_omega_     (left turn limit)
-        //  omega <= max_omega_     (right turn limit)
-        G(n_obs+0, 0) = -1.0; G(n_obs+0, 1) =  0.0; h_vec(n_obs+0) = 0.0;
-        G(n_obs+1, 0) =  1.0; G(n_obs+1, 1) =  0.0; h_vec(n_obs+1) = linear_speed_;
-        G(n_obs+2, 0) =  0.0; G(n_obs+2, 1) = -1.0; h_vec(n_obs+2) = max_omega_;
-        G(n_obs+3, 0) =  0.0; G(n_obs+3, 1) =  1.0; h_vec(n_obs+3) = max_omega_;
+        G(n_obs+0,0)=-1; G(n_obs+0,1)= 0; h_vec(n_obs+0)=0.0;
+        G(n_obs+1,0)= 1; G(n_obs+1,1)= 0; h_vec(n_obs+1)=linear_speed_;
+        G(n_obs+2,0)= 0; G(n_obs+2,1)=-1; h_vec(n_obs+2)=max_omega_;
+        G(n_obs+3,0)= 0; G(n_obs+3,1)= 1; h_vec(n_obs+3)=max_omega_;
 
-        // ── Projected gradient QP solver ──────────────────────────────────
-        // min 0.5||u - u_nom||²  s.t. G*u <= h_vec
-        //
-        // Algorithm: start at u_nom, iteratively project back onto each
-        // violated constraint halfspace. Converges in <20 iterations for
-        // typical obstacle counts (1-5).
-        Eigen::Vector2d u_nom_vec(v_nom, omega_nom);
-        Eigen::Vector2d u = u_nom_vec;
-
+        Eigen::Vector2d u(v_nom, omega_nom);
         for (int iter = 0; iter < 20; ++iter) {
-            bool any_violated = false;
+            bool viol = false;
             for (int i = 0; i < n_con; ++i) {
                 Eigen::Vector2d g = G.row(i).transpose();
-                const double slack = g.dot(u) - h_vec(i);
+                double slack = g.dot(u) - h_vec(i);
                 if (slack > 1e-6) {
-                    any_violated = true;
-                    const double g_norm_sq = g.squaredNorm();
-                    if (g_norm_sq < 1e-12) continue;
-                    u -= (slack / g_norm_sq) * g;
+                    viol = true;
+                    double gn = g.squaredNorm();
+                    if (gn < 1e-12) continue;
+                    u -= (slack / gn) * g;
                 }
             }
-            if (!any_violated) break;
+            if (!viol) break;
         }
-
-        // clamp v to non-negative
         if (u(0) < 0.0) u(0) = 0.0;
-
         return {u(0), u(1)};
     }
 
@@ -734,9 +790,7 @@ private:
     void onPath(nav_msgs::msg::Path::SharedPtr msg) {
         if (msg->poses.empty()) {
             RCLCPP_WARN(get_logger(), "Empty path — stopping.");
-            stopRobot();
-            active_ = false;
-            return;
+            stopRobot(); active_ = false; return;
         }
         waypoints_ = msg->poses;
         wp_idx_    = 0;
@@ -747,13 +801,11 @@ private:
 
     // ── Pure-pursuit lookahead index (unchanged) ──────────────────────────────
     size_t lookaheadIndex() {
-        for (size_t i = wp_idx_; i < waypoints_.size(); ++i) {
+        for (size_t i = wp_idx_; i < waypoints_.size(); ++i)
             if (dist2d(pose_x_, pose_y_,
                        waypoints_[i].pose.position.x,
-                       waypoints_[i].pose.position.y) >= lookahead_) {
+                       waypoints_[i].pose.position.y) >= lookahead_)
                 return i;
-            }
-        }
         return waypoints_.size() - 1;
     }
 
@@ -795,7 +847,7 @@ private:
 
         if (!have_pose_ && !tryTfPose()) {
             RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 2000,
-                "Waiting for pose (/amcl_pose or map->base_link TF)");
+                "Waiting for pose");
             return;
         }
 
@@ -814,30 +866,41 @@ private:
             } else break;
         }
 
+<<<<<<< HEAD
         // ── Check final goal ──────────────────────────────────────────────────
+=======
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
         double dist_final = dist2d(pose_x_, pose_y_,
                                    waypoints_.back().pose.position.x,
                                    waypoints_.back().pose.position.y);
-        if (have_goal_ && active_ && !obstacles_.empty()) {
-            if (dist_final < last_dist_to_goal_ - 0.05) {
-                // making progress
-                last_dist_to_goal_  = dist_final;
-                last_progress_time_ = now();
-            } else {
-                double stuck_secs = (now() - last_progress_time_).seconds();
-                if (stuck_secs > stuck_timeout_s_) {
-                    RCLCPP_WARN(get_logger(),
-                        "Stuck for %.1fs with obstacles present — triggering replan",
-                        stuck_secs);
-                    // republish same goal → A* replans with current dynamic obstacles
-                    goal_pub_->publish(current_goal_);
-                    last_progress_time_ = now();  // reset timer
+
+        // ── replan logic ─────────────────────────────────────────────────
+        if (have_goal_ && active_) {
+
+            // PROACTIVE: obstacle purple circle intersects planned path ahead
+            // Triggers before robot even slows down
+            if (!obstacles_.empty() && pathIntersectsObstacle()) {
+                triggerReplan("obstacle on planned path");
+            }
+            // REACTIVE fallback: robot stuck despite no path intersection
+            // (handles cases where obstacle_detector misses something)
+            else {
+                if (dist_final < last_dist_to_goal_ - 0.05) {
+                    last_dist_to_goal_  = dist_final;
+                    last_progress_time_ = now();
+                } else if (!obstacles_.empty()) {
+                    double stuck = (now() - last_progress_time_).seconds();
+                    if (stuck > stuck_timeout_s_) {
+                        triggerReplan("robot stuck with obstacles");
+                    }
                 }
             }
         }
 
+        // check goal reached
         if (dist_final < final_tolerance_) {
             RCLCPP_INFO(get_logger(), "Goal reached!");
+<<<<<<< HEAD
             stopRobot();
             active_ = false;
             state_  = State::FOLLOWING;
@@ -849,16 +912,28 @@ private:
 =======
         // ── pure pursuit → nominal (v, omega) ────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+            stopRobot(); active_ = false; return;
+        }
+
+        // ── pure pursuit → nominal control ────────────────────────────────
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
         size_t tidx = lookaheadIndex();
         double tx = waypoints_[tidx].pose.position.x;
         double ty = waypoints_[tidx].pose.position.y;
         publishTargetMarker(tx, ty);
 
+<<<<<<< HEAD
         // =====================================================================
         // STATE MACHINE
         // =====================================================================
 
         switch (state_) {
+=======
+        double desired_yaw = std::atan2(ty - pose_y_, tx - pose_x_);
+        double herr        = wrapAngle(desired_yaw - pose_yaw_);
+        double omega       = clamp(heading_kp_ * herr, -max_omega_, max_omega_);
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
 
         // ── FOLLOWING ────────────────────────────────────────────────────────
         case State::FOLLOWING: {
@@ -941,6 +1016,7 @@ private:
         } // switch
     }
 
+<<<<<<< HEAD
     // =========================================================================
     // Replan: re-publish the stored goal so A* runs again from current pose
     // =========================================================================
@@ -959,6 +1035,9 @@ private:
     // Debug visualisation
     // =========================================================================
 
+=======
+    // ── target marker ────────────────────────────────────────────────────────
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
     void publishTargetMarker(double x, double y) {
         visualization_msgs::msg::Marker m;
         m.header.frame_id = map_frame_;
@@ -966,17 +1045,15 @@ private:
         m.ns = "controller"; m.id = 0;
         m.type   = visualization_msgs::msg::Marker::SPHERE;
         m.action = visualization_msgs::msg::Marker::ADD;
-        m.pose.position.x = x;
-        m.pose.position.y = y;
-        m.pose.position.z = 0.25;
+        m.pose.position.x = x; m.pose.position.y = y; m.pose.position.z = 0.25;
         m.pose.orientation.w = 1.0;
         m.scale.x = m.scale.y = m.scale.z = 0.3;
-        m.color.r = 1.0f; m.color.g = 0.5f;
-        m.color.b = 0.0f; m.color.a = 1.0f;
+        m.color.r = 1.0f; m.color.g = 0.5f; m.color.b = 0.0f; m.color.a = 1.0f;
         m.lifetime = rclcpp::Duration::from_seconds(0.15);
         marker_pub_->publish(m);
     }
 
+<<<<<<< HEAD
     // Publish occupied local map cells as POINTS marker for RViz
     void publishLocalMapMarker() {
         visualization_msgs::msg::Marker m;
@@ -1001,6 +1078,100 @@ private:
             }
         }
         local_map_pub_->publish(m);
+=======
+    // ── CBF zone visualization ────────────────────────────────────────────────
+    // Runs at 10Hz independently of control loop.
+    // Shows all three safety zones for each detected obstacle:
+    //   Red    = collision boundary  (obs.radius + r_robot)
+    //   Orange = CBF active zone     (obs.radius + cbf_influence_dist)
+    //   Purple = A* exclusion zone   (obs.radius + astar_clearance_viz)
+    //   Yellow arrow = obstacle velocity
+    void publishCbfMarkers() {
+        visualization_msgs::msg::MarkerArray arr;
+
+        // clear stale markers from previous tick
+        visualization_msgs::msg::Marker del;
+        del.header.frame_id = map_frame_;
+        del.header.stamp    = now();
+        del.ns     = "cbf_zones";
+        del.action = visualization_msgs::msg::Marker::DELETEALL;
+        arr.markers.push_back(del);
+
+        visualization_msgs::msg::Marker del2 = del;
+        del2.ns = "cbf_velocity";
+        arr.markers.push_back(del2);
+
+        int id = 0;
+        for (const auto& obs : obstacles_) {
+
+            auto makeDisc = [&](double r,
+                                float red, float grn, float blu, float alpha,
+                                const std::string& ns)
+            {
+                visualization_msgs::msg::Marker m;
+                m.header.frame_id    = map_frame_;
+                m.header.stamp       = now();
+                m.ns                 = ns;
+                m.id                 = id++;
+                m.type               = visualization_msgs::msg::Marker::CYLINDER;
+                m.action             = visualization_msgs::msg::Marker::ADD;
+                m.pose.position.x    = obs.center.x;
+                m.pose.position.y    = obs.center.y;
+                m.pose.position.z    = 0.01;
+                m.pose.orientation.w = 1.0;
+                m.scale.x            = r * 2.0;   // diameter
+                m.scale.y            = r * 2.0;
+                m.scale.z            = 0.01;       // flat disc
+                m.color.r = red; m.color.g = grn;
+                m.color.b = blu; m.color.a = alpha;
+                m.lifetime = rclcpp::Duration::from_seconds(0.2);
+                return m;
+            };
+
+            // red — collision boundary: robot surface touches obstacle surface
+            arr.markers.push_back(
+                makeDisc(obs.radius + r_robot_,
+                         1.0f, 0.0f, 0.0f, 0.25f, "cbf_zones"));
+
+            // orange — CBF active zone: robot starts slowing here
+            arr.markers.push_back(
+                makeDisc(obs.radius + cbf_influence_dist_,
+                         1.0f, 0.6f, 0.0f, 0.12f, "cbf_zones"));
+
+            // purple — A* exclusion zone: A* never plans nodes inside here
+            // astar_clearance_viz must match dynamic_obs_clearance in astar_planner
+            arr.markers.push_back(
+                makeDisc(obs.radius + astar_clearance_viz_,
+                         0.5f, 0.0f, 1.0f, 0.06f, "cbf_zones"));
+
+            // yellow arrow — obstacle velocity direction and magnitude
+            double speed = std::hypot(obs.velocity.x, obs.velocity.y);
+            if (speed > 0.05) {
+                visualization_msgs::msg::Marker arrow;
+                arrow.header.frame_id    = map_frame_;
+                arrow.header.stamp       = now();
+                arrow.ns                 = "cbf_velocity";
+                arrow.id                 = id++;
+                arrow.type               = visualization_msgs::msg::Marker::ARROW;
+                arrow.action             = visualization_msgs::msg::Marker::ADD;
+                arrow.pose.position.x    = obs.center.x;
+                arrow.pose.position.y    = obs.center.y;
+                arrow.pose.position.z    = 0.15;
+                double yaw               = std::atan2(obs.velocity.y, obs.velocity.x);
+                arrow.pose.orientation.z = std::sin(yaw / 2.0);
+                arrow.pose.orientation.w = std::cos(yaw / 2.0);
+                arrow.scale.x            = speed * 1.5;  // length ∝ speed
+                arrow.scale.y            = 0.06;
+                arrow.scale.z            = 0.06;
+                arrow.color.r = 1.0f; arrow.color.g = 1.0f;
+                arrow.color.b = 0.0f; arrow.color.a = 0.9f;
+                arrow.lifetime = rclcpp::Duration::from_seconds(0.2);
+                arr.markers.push_back(arrow);
+            }
+        }
+
+        cbf_viz_pub_->publish(arr);
+>>>>>>> 1e701e5 (obstacle avoidance tuned)
     }
 };
 
