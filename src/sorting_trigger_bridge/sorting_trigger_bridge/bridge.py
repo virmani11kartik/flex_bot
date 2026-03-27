@@ -14,7 +14,8 @@ from fastapi.middleware.cors import CORSMiddleware
 
 
 app = FastAPI()
-TARGET_POSE_TOPIC = "/target_pose"
+# TARGET_POSE_TOPIC = "/target_pose"
+TARGET_POSE_TOPIC = "/goal_pose"
 SHELF_READING_FLAG_TOPIC = "/shelf_reading_flag"
 
 app.add_middleware(
