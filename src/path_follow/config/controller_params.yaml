@@ -19,6 +19,7 @@ astar_planner:
     use_tf_start: true
     map_frame: "map"
     base_frame: "base_link"
+    dynamic_obs_clearance: 0.74 #(PURPLE CIRCLE)
 
 # ── Waypoint Controller ───────────────────────────────────────────────────────
 waypoint_controller:
@@ -29,7 +30,7 @@ waypoint_controller:
     max_wheel_rads:   3.0
     # Motion
     linear_speed:     0.15
-    max_omega:        0.8
+    max_omega:        0.35
     goal_tolerance:   0.4
     final_tolerance:  0.10
     heading_kp:       1.2
@@ -41,12 +42,17 @@ waypoint_controller:
     # CBF safety filter
     cbf_enabled:          true   # false = revert to pure pursuit instantly
     cbf_alpha:            1.0    # was 1.5 — less conservative
-    r_robot:              0.30   # your robot footprint radius m
-    cbf_influence_dist:   0.5    # ignore obstacles beyond this distance m
+    r_robot:              0.35   # your robot footprint radius m (RED CIRCLE)
+    cbf_influence_dist:   0.60    # ignore obstacles beyond this distance m  (ORANGE CIRCLE)
     cbf_forward_cone:     0.35    # cos(78°) — ignore obstacles outside forward cone
     cbf_path_half_width:  0.30   # lateral sweep width m — ignore far-side obstacles
     cbf_lookahead_t:      1.0    # lookahead time for omega steering correction s
     cbf_ttc_threshold:    5.0
+    # replan
+    stuck_timeout_s:      1.0
+    replan_debounce_s:    1.0      # ← new
+    path_check_horizon:   15       # ← new — waypoints ahead to check
+    astar_clearance_viz:  0.74     # ← must match astar_planner dynamic_obs_clearance
 
 mpc_waypoint_controller:
   ros__parameters:
