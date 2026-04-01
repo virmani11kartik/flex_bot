@@ -275,6 +275,60 @@
         .eye-left { left: 80px; }
         .eye-right { right: 30px; }
 
+        .voice-visualizer {
+            position: absolute;
+            inset: 16px 20px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 10px;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+            pointer-events: none;
+        }
+
+        .voice-bar {
+            width: 14px;
+            height: 24px;
+            border-radius: 999px;
+            background: linear-gradient(180deg, #7EF9FF, #00BCD4);
+            box-shadow: 0 0 16px rgba(77, 208, 225, 0.75);
+            transform-origin: center bottom;
+        }
+
+        .robot-face.listening .voice-visualizer,
+        .robot-face.speaking .voice-visualizer {
+            opacity: 1;
+        }
+
+        .robot-face.listening .eye,
+        .robot-face.speaking .eye {
+            opacity: 0.16;
+        }
+
+        .robot-face.listening .voice-bar,
+        .robot-face.speaking .voice-bar {
+            animation: voiceBounce 0.9s ease-in-out infinite;
+        }
+
+        .robot-face.speaking .voice-bar {
+            background: linear-gradient(180deg, var(--accent), var(--secondary));
+            box-shadow: 0 0 18px rgba(247, 160, 114, 0.8);
+            animation-duration: 0.65s;
+        }
+
+        .voice-bar:nth-child(1) { animation-delay: 0s; }
+        .voice-bar:nth-child(2) { animation-delay: 0.12s; }
+        .voice-bar:nth-child(3) { animation-delay: 0.24s; }
+        .voice-bar:nth-child(4) { animation-delay: 0.08s; }
+        .voice-bar:nth-child(5) { animation-delay: 0.18s; }
+        .voice-bar:nth-child(6) { animation-delay: 0.3s; }
+
+        @keyframes voiceBounce {
+            0%, 100% { transform: scaleY(0.45); opacity: 0.55; }
+            50% { transform: scaleY(1.8); opacity: 1; }
+        }
+
 
         .mouth {
             position: absolute;
@@ -363,6 +417,60 @@
             text-align: center;
             animation: fadeInUp 1s ease 0.5s both;
         }
+
+        .home-actions {
+            margin-top: 22px;
+            display: flex;
+            justify-content: center;
+            gap: 16px;
+            flex-wrap: wrap;
+        }
+
+        .btn-speak {
+            background: linear-gradient(135deg, #00a3c4, #2D5F7E);
+            box-shadow: 0 10px 30px rgba(0, 163, 196, 0.28);
+        }
+
+        .btn-speak:hover {
+            box-shadow: 0 16px 34px rgba(0, 163, 196, 0.36);
+        }
+
+        .voice-panel {
+            margin-top: 18px;
+            width: min(760px, calc(100vw - 80px));
+            min-height: 96px;
+            padding: 18px 22px;
+            border-radius: 26px;
+            background: rgba(255, 255, 255, 0.88);
+            border: 2px solid rgba(45, 95, 126, 0.16);
+            box-shadow: 0 14px 36px rgba(45, 95, 126, 0.12);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+
+        .voice-panel-label {
+            font-family: 'Space Mono', monospace;
+            font-size: 0.82rem;
+            letter-spacing: 0.1em;
+            text-transform: uppercase;
+            color: var(--primary);
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+
+        .voice-panel-text {
+            font-size: 1.12rem;
+            font-weight: 600;
+            color: var(--text-dark);
+            line-height: 1.45;
+        }
+
+        .voice-panel-text.transcript {
+            color: #4f6473;
+            font-weight: 500;
+            margin-top: 8px;
+        }
+
         .face-circle {
             width: 100%;
             height: 400px;
@@ -1011,6 +1119,224 @@
             100% { transform: translateX(100%); }
         }
 
+        /* Self Checkout Screens */
+        .self-checkout-content {
+            text-align: center;
+            max-width: 1050px;
+            padding: 40px;
+            width: 100%;
+        }
+
+        .checkout-subtitle {
+            font-size: 1.35rem;
+            color: var(--text-dark);
+            margin-bottom: 30px;
+            font-weight: 500;
+            animation: fadeInUp 0.6s ease 0.1s both;
+        }
+
+        .patron-form-card,
+        .checkout-panel {
+            background: white;
+            border: 3px solid var(--primary);
+            border-radius: 28px;
+            padding: 32px;
+            box-shadow: 0 10px 30px var(--shadow);
+            animation: fadeInUp 0.6s ease 0.2s both;
+        }
+
+        .patron-form-card {
+            max-width: 760px;
+            margin: 0 auto 30px;
+        }
+
+        .patron-form-title,
+        .checkout-panel-title {
+            font-size: 1.5rem;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 20px;
+        }
+
+        .patron-form-grid,
+        .checkout-scan-row {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .checkout-field {
+            text-align: left;
+        }
+
+        .checkout-field label {
+            display: block;
+            font-size: 1rem;
+            font-weight: 700;
+            color: var(--text-dark);
+            margin-bottom: 10px;
+        }
+
+        .checkout-text-input {
+            width: 100%;
+            padding: 18px 24px;
+            font-size: 1.2rem;
+            border: 3px solid var(--primary);
+            border-radius: 20px;
+            outline: none;
+            font-family: 'Quicksand', sans-serif;
+            font-weight: 600;
+            background: white;
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        .checkout-text-input:focus {
+            border-color: var(--secondary);
+            box-shadow: 0 0 20px rgba(247, 160, 114, 0.25);
+        }
+
+        .checkout-actions {
+            margin-top: 24px;
+        }
+
+        .checkout-patron-summary {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 16px 24px;
+            background: rgba(45, 95, 126, 0.08);
+            border-radius: 999px;
+            color: var(--primary);
+            font-weight: 700;
+            margin-bottom: 24px;
+            font-family: 'Space Mono', monospace;
+            animation: fadeInUp 0.6s ease 0.15s both;
+        }
+
+        .checkout-layout {
+            display: grid;
+            grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
+            gap: 24px;
+            align-items: start;
+        }
+
+        .checkout-scan-row {
+            grid-template-columns: minmax(0, 1fr) auto;
+            margin-bottom: 20px;
+        }
+
+        .checkout-status-message {
+            min-height: 64px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            border-radius: 18px;
+            padding: 18px 20px;
+            font-size: 1.1rem;
+            font-weight: 700;
+            background: rgba(45, 95, 126, 0.08);
+            color: var(--primary);
+        }
+
+        .checkout-status-message.error {
+            background: rgba(255, 87, 34, 0.12);
+            color: #C2451F;
+        }
+
+        .checkout-status-message.success {
+            background: rgba(76, 175, 80, 0.15);
+            color: #2E7D32;
+        }
+
+        .checkout-summary-stats {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+
+        .checkout-summary-card {
+            background: linear-gradient(135deg, var(--primary), #3D7FA0);
+            color: white;
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+
+        .checkout-summary-number {
+            font-size: 2.7rem;
+            font-family: 'Space Mono', monospace;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .checkout-summary-label {
+            font-size: 0.95rem;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .checkout-list {
+            max-height: 360px;
+            overflow-y: auto;
+            text-align: left;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .checkout-empty {
+            border: 2px dashed rgba(45, 95, 126, 0.3);
+            border-radius: 20px;
+            padding: 28px;
+            color: #6b7280;
+            text-align: center;
+            font-size: 1.05rem;
+            font-weight: 600;
+        }
+
+        .checkout-book-item {
+            background: rgba(255, 248, 240, 0.9);
+            border: 2px solid rgba(45, 95, 126, 0.12);
+            border-radius: 20px;
+            padding: 18px 20px;
+        }
+
+        .checkout-book-title {
+            color: var(--primary);
+            font-size: 1.15rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .checkout-book-meta {
+            color: var(--text-dark);
+            font-size: 0.98rem;
+            margin-bottom: 4px;
+        }
+
+        .checkout-book-due {
+            color: #2E7D32;
+            font-size: 0.92rem;
+            font-weight: 700;
+            font-family: 'Space Mono', monospace;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        @media (max-width: 900px) {
+            .patron-form-grid,
+            .checkout-layout,
+            .checkout-scan-row,
+            .checkout-summary-stats {
+                grid-template-columns: 1fr;
+            }
+        }
+
         /* Book Status Screen */
         .book-status-content {
             text-align: center;
@@ -1461,6 +1787,14 @@
                         <div class="eye eye-right">
                             <div class="pupil"></div>
                         </div>
+                        <div class="voice-visualizer" aria-hidden="true">
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                            <div class="voice-bar"></div>
+                        </div>
                     </div>
                     
                     <!-- LED bar mouth -->
@@ -1478,7 +1812,16 @@
                     <div class="bolt bolt-br"></div>
                 </div>
             </div>
-            <div class="status-text">Waiting to help you...</div>
+            <div class="status-text" id="robotStatusText">Waiting to help you...</div>
+            <div class="home-actions">
+                <button class="btn-action btn-speak" id="speakButton" onclick="toggleVoiceAssistant()">Speak</button>
+                <button class="btn-secondary" onclick="showMenu()">Touch Menu</button>
+            </div>
+            <div class="voice-panel" id="voicePanel">
+                <div class="voice-panel-label">Library Robot Voice</div>
+                <div class="voice-panel-text" id="voiceAssistantMessage">Tap Speak and ask me about books, directions, hours, printing, or general library help.</div>
+                <div class="voice-panel-text transcript" id="voiceTranscriptText">Listening transcript will appear here.</div>
+            </div>
         </div>
 
         <div class="screen" id="adminScreen">
@@ -1651,6 +1994,96 @@
                 
                 <button class="btn-action btn-done" onclick="markBookPlaced()">Done - Book Placed</button>
                 <button class="btn-secondary" onclick="exitBookReturns()">Cancel</button>
+            </div>
+        </div>
+
+        <!-- Self Checkout - Patron Info Screen -->
+        <div class="screen" id="selfCheckoutPatronScreen">
+            <div class="self-checkout-content">
+                <h2 class="book-returns-title">✅ Self Checkout</h2>
+                <p class="checkout-subtitle">Before scanning begins, please enter your name and ID number.</p>
+
+                <div class="patron-form-card">
+                    <div class="patron-form-title">Patron Information</div>
+                    <div class="patron-form-grid">
+                        <div class="checkout-field">
+                            <label for="checkoutNameInput">Full Name</label>
+                            <input
+                                type="text"
+                                id="checkoutNameInput"
+                                class="checkout-text-input"
+                                placeholder="Enter your name"
+                                autocomplete="name"
+                            >
+                        </div>
+                        <div class="checkout-field">
+                            <label for="checkoutIdInput">Library ID Number</label>
+                            <input
+                                type="text"
+                                id="checkoutIdInput"
+                                class="checkout-text-input"
+                                placeholder="Enter your ID number"
+                                autocomplete="off"
+                            >
+                        </div>
+                    </div>
+                    <div class="checkout-actions">
+                        <button class="btn-action btn-done" onclick="beginSelfCheckout()">Continue to Scanning</button>
+                        <button class="btn-secondary" onclick="exitSelfCheckout()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Self Checkout - Scan Screen -->
+        <div class="screen" id="selfCheckoutScanScreen">
+            <div class="self-checkout-content">
+                <h2 class="book-returns-title">✅ Self Checkout</h2>
+                <div class="checkout-patron-summary" id="checkoutPatronSummary">
+                    Patron: Not started
+                </div>
+
+                <div class="checkout-layout">
+                    <div class="checkout-panel">
+                        <div class="checkout-panel-title">Scan Books</div>
+                        <p class="checkout-subtitle">Scan each barcode. Scanned books will appear in the list on the right.</p>
+                        <div class="checkout-scan-row">
+                            <input
+                                type="text"
+                                id="checkoutScanInput"
+                                class="checkout-text-input"
+                                placeholder="Scan or enter a barcode / ISBN"
+                                autocomplete="off"
+                            >
+                            <button class="btn-action btn-scan" onclick="handleSelfCheckoutScan()">Add Book</button>
+                        </div>
+                        <div class="checkout-status-message" id="checkoutScanStatus">
+                            Waiting for the first scan...
+                        </div>
+                        <div class="checkout-actions">
+                            <button class="btn-action btn-done" onclick="completeSelfCheckout()">Complete Checkout</button>
+                            <button class="btn-action btn-scan" onclick="simulateCheckoutScan()">Simulate Scan</button>
+                            <button class="btn-secondary" onclick="exitSelfCheckout()">Cancel</button>
+                        </div>
+                    </div>
+
+                    <div class="checkout-panel">
+                        <div class="checkout-panel-title">Scanned Books</div>
+                        <div class="checkout-summary-stats">
+                            <div class="checkout-summary-card">
+                                <div class="checkout-summary-number" id="checkoutScannedCount">0</div>
+                                <div class="checkout-summary-label">Books Scanned</div>
+                            </div>
+                            <div class="checkout-summary-card">
+                                <div class="checkout-summary-number" id="checkoutDueDate">--</div>
+                                <div class="checkout-summary-label">Due Date</div>
+                            </div>
+                        </div>
+                        <div class="checkout-list" id="checkoutScannedBooks">
+                            <div class="checkout-empty">No books scanned yet.</div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 

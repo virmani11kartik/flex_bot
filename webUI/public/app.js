@@ -17,6 +17,13 @@ const FACE_DETECTION_CONFIG = {
   requiredGazeDuration: 2000,     // Time in ms a face must remain visible before engaging
   faceSizeThreshold: 0.12,        // Minimum face size to prevent distant detections (0-1)
   detectionInterval: 100,         // Time between detection checks in ms
+  obstructionDiffThreshold: 28,   // Average frame difference to treat as close obstruction
+  obstructionCoverageThreshold: 0.35, // Portion of changed pixels that counts as obstruction
+  obstructionDarknessThreshold: 55,   // Low brightness threshold for covered camera detection
+  obstructionPixelThreshold: 35,      // Per-pixel grayscale delta for changed coverage
+  baselineLearningRate: 0.08,         // Speed to adapt the background reference frame
+  analysisWidth: 48,
+  analysisHeight: 36,
 };
 
 const ROS_BRIDGE_URL = 'http://localhost:8080';
@@ -50,14 +57,32 @@ let faceDetector = null;
 let video = null;
 let overlayCanvas = null;
 let overlayContext = null;
+
+// Voice Assistant
+let speechRecognition = null;
+let speechRecognitionSupported = false;
+let isVoiceListening = false;
+let isVoiceSpeaking = false;
+let pendingVoiceResponse = '';
+let manualVoiceStopRequested = false;
+let voiceSessionActive = false;
+let voiceRestartTimeout = null;
+let lastVoiceRecognitionError = '';
+let voiceConversationHistory = [];
  
 // Book Returns
 let bookReturnsManager = null;
+let selfCheckoutManager = null;
  
 // DOM Elements
 const elements = {
   video: null,
   overlay: null,
+  robotFace: null,
+  robotStatusText: null,
+  speakButton: null,
+  voiceAssistantMessage: null,
+  voiceTranscriptText: null,
   detectionPanel: null,
   cameraStatus: null,
   modelStatus: null,
@@ -76,6 +101,11 @@ async function init() {
   // Get DOM elements
   elements.video = document.getElementById('video');
   elements.overlay = document.getElementById('overlay');
+  elements.robotFace = document.querySelector('#defaultScreen .robot-face');
+  elements.robotStatusText = document.getElementById('robotStatusText');
+  elements.speakButton = document.getElementById('speakButton');
+  elements.voiceAssistantMessage = document.getElementById('voiceAssistantMessage');
+  elements.voiceTranscriptText = document.getElementById('voiceTranscriptText');
   
   video = elements.video;
   overlayCanvas = elements.overlay;
@@ -89,6 +119,12 @@ async function init() {
   
   // Initialize book returns manager
   initializeBookReturns();
+
+  // Initialize self checkout manager
+  initializeSelfCheckout();
+
+  // Initialize voice assistant
+  initializeVoiceAssistant();
   
   // Load books database
   await loadBooksDatabase();
@@ -179,7 +215,19 @@ class FaceDetectorManager {
       requiredGazeDuration: config.requiredGazeDuration || 2000,
       faceSizeThreshold: config.faceSizeThreshold || 0.15,
       detectionInterval: config.detectionInterval || 100,
+      obstructionDiffThreshold: config.obstructionDiffThreshold || 28,
+      obstructionCoverageThreshold: config.obstructionCoverageThreshold || 0.35,
+      obstructionDarknessThreshold: config.obstructionDarknessThreshold || 55,
+      obstructionPixelThreshold: config.obstructionPixelThreshold || 35,
+      baselineLearningRate: config.baselineLearningRate || 0.08,
+      analysisWidth: config.analysisWidth || 48,
+      analysisHeight: config.analysisHeight || 36,
     };
+
+    this.analysisCanvas = document.createElement('canvas');
+    this.analysisCanvas.width = this.config.analysisWidth;
+    this.analysisCanvas.height = this.config.analysisHeight;
+    this.analysisContext = this.analysisCanvas.getContext('2d', { willReadFrequently: true });
     
     // State
     this.state = {
@@ -188,6 +236,9 @@ class FaceDetectorManager {
       currentFace: null,
       faceHistory: [],
       historySize: 5,
+      detectionSource: null,
+      baselineFrame: null,
+      lastFrameMetrics: null,
     };
     
     // Callbacks
@@ -211,17 +262,22 @@ class FaceDetectorManager {
     this.state.gazeStartTime = null;
     this.state.currentFace = null;
     this.state.faceHistory = [];
+    this.state.detectionSource = null;
+    this.state.baselineFrame = null;
+    this.state.lastFrameMetrics = null;
   }
   
   async detect() {
     if (!this.isRunning) return;
     
     try {
+      const frameMetrics = this.captureFrameMetrics();
+
       // Get face predictions
       const predictions = await this.model.estimateFaces(this.video, false);
       
       // Process predictions
-      this.processPredictions(predictions);
+      this.processPredictions(predictions, frameMetrics);
       
       // Visualize if debug mode is on
       if (debugMode) {
@@ -236,23 +292,37 @@ class FaceDetectorManager {
     setTimeout(() => this.detect(), this.config.detectionInterval);
   }
   
-  processPredictions(predictions) {
+  processPredictions(predictions, frameMetrics) {
     const now = Date.now();
+    const obstructionPresent = this.isObstructionPresent(frameMetrics);
     
-    if (predictions.length === 0) {
+    if (predictions.length === 0 && !obstructionPresent) {
+      this.updateBaselineFrame(frameMetrics);
       this.handleNoFace();
       return;
     }
     
-    // Reset no-face timer since we detected a face
+    // Reset no-face timer since we detected a face or nearby obstruction
     if (typeof resetNoFaceTimer === 'function') {
       resetNoFaceTimer();
+    }
+
+    if (predictions.length === 0 && obstructionPresent) {
+      this.state.currentFace = null;
+      this.state.faceHistory = [];
+      this.handleLooking(now, 'obstruction');
+      return;
     }
     
     // Get primary face (largest)
     const primaryFace = this.getPrimaryFace(predictions);
     if (!primaryFace) {
-      this.handleNoFace();
+      if (obstructionPresent) {
+        this.handleLooking(now, 'obstruction');
+      } else {
+        this.updateBaselineFrame(frameMetrics);
+        this.handleNoFace();
+      }
       return;
     }
     
@@ -271,9 +341,97 @@ class FaceDetectorManager {
     const isFacePresent = this.isFacePresent(metrics);
     
     if (isFacePresent) {
-      this.handleLooking(now);
+      this.handleLooking(now, 'face');
+    } else if (obstructionPresent) {
+      this.handleLooking(now, 'obstruction');
     } else {
+      this.updateBaselineFrame(frameMetrics);
       this.handleNotLooking();
+    }
+  }
+
+  captureFrameMetrics() {
+    if (!this.analysisContext || !this.video.videoWidth || !this.video.videoHeight) {
+      return null;
+    }
+
+    const width = this.config.analysisWidth;
+    const height = this.config.analysisHeight;
+
+    this.analysisContext.drawImage(this.video, 0, 0, width, height);
+    const imageData = this.analysisContext.getImageData(0, 0, width, height).data;
+    const grayscale = new Float32Array(width * height);
+
+    let brightnessSum = 0;
+    for (let i = 0, pixelIndex = 0; i < imageData.length; i += 4, pixelIndex += 1) {
+      const brightness = (imageData[i] + imageData[i + 1] + imageData[i + 2]) / 3;
+      grayscale[pixelIndex] = brightness;
+      brightnessSum += brightness;
+    }
+
+    const averageBrightness = brightnessSum / grayscale.length;
+
+    if (!this.state.baselineFrame) {
+      this.state.baselineFrame = grayscale.slice();
+      this.state.lastFrameMetrics = {
+        averageBrightness,
+        averageDiff: 0,
+        changedCoverage: 0,
+      };
+      return this.state.lastFrameMetrics;
+    }
+
+    let diffSum = 0;
+    let changedPixels = 0;
+    for (let i = 0; i < grayscale.length; i += 1) {
+      const diff = Math.abs(grayscale[i] - this.state.baselineFrame[i]);
+      diffSum += diff;
+      if (diff >= this.config.obstructionPixelThreshold) {
+        changedPixels += 1;
+      }
+    }
+
+    const metrics = {
+      averageBrightness,
+      averageDiff: diffSum / grayscale.length,
+      changedCoverage: changedPixels / grayscale.length,
+      grayscale,
+    };
+
+    this.state.lastFrameMetrics = metrics;
+    return metrics;
+  }
+
+  isObstructionPresent(frameMetrics) {
+    if (!frameMetrics) {
+      return false;
+    }
+
+    const isVeryDark = frameMetrics.averageBrightness <= this.config.obstructionDarknessThreshold;
+    const isLargeChange = (
+      frameMetrics.averageDiff >= this.config.obstructionDiffThreshold &&
+      frameMetrics.changedCoverage >= this.config.obstructionCoverageThreshold
+    );
+
+    return isVeryDark || isLargeChange;
+  }
+
+  updateBaselineFrame(frameMetrics) {
+    if (!frameMetrics || !frameMetrics.grayscale) {
+      return;
+    }
+
+    if (!this.state.baselineFrame) {
+      this.state.baselineFrame = frameMetrics.grayscale.slice();
+      return;
+    }
+
+    const nextBaseline = this.state.baselineFrame;
+    const currentFrame = frameMetrics.grayscale;
+    const rate = this.config.baselineLearningRate;
+
+    for (let i = 0; i < currentFrame.length; i += 1) {
+      nextBaseline[i] = (nextBaseline[i] * (1 - rate)) + (currentFrame[i] * rate);
     }
   }
   
@@ -332,16 +490,18 @@ class FaceDetectorManager {
     return true;
   }
   
-  handleLooking(now) {
+  handleLooking(now, source = 'face') {
     if (!this.state.isLookingAtScreen) {
       // Started looking
       this.state.isLookingAtScreen = true;
       this.state.gazeStartTime = now;
+      this.state.detectionSource = source;
       
       if (this.onGazeStart) {
         this.onGazeStart();
       }
     } else {
+      this.state.detectionSource = source;
       // Check duration
       const duration = now - this.state.gazeStartTime;
       
@@ -349,7 +509,7 @@ class FaceDetectorManager {
         this.hasTriggeredWelcome = true;
         
         if (this.onEngaged) {
-          this.onEngaged({ duration, timestamp: now });
+          this.onEngaged({ duration, timestamp: now, source });
         }
       }
     }
@@ -359,6 +519,7 @@ class FaceDetectorManager {
     if (this.state.isLookingAtScreen) {
       this.state.isLookingAtScreen = false;
       this.state.gazeStartTime = null;
+      this.state.detectionSource = null;
       
       if (this.onGazeEnd) {
         this.onGazeEnd();
@@ -429,7 +590,7 @@ function handleUserEngaged(data) {
   console.log('User engaged!', data);
   
   // Only trigger welcome if on default screen
-  if (currentScreen === 'defaultScreen') {
+  if (currentScreen === 'defaultScreen' && !isVoiceAssistantActive()) {
     showWelcome();
     
     // Play welcome sound if available
@@ -620,6 +781,137 @@ function initializeBookReturns() {
   
   console.log('Book returns system initialized');
 }
+
+/**
+ * Initialize self checkout system
+ */
+function initializeSelfCheckout() {
+  class SelfCheckoutManager {
+    constructor(config = {}) {
+      this.config = {
+        loanPeriodDays: config.loanPeriodDays || 14,
+      };
+
+      this.reset();
+    }
+
+    startSession(patron) {
+      this.state.patron = patron;
+      this.state.scannedBooks = [];
+      this.state.isScanning = true;
+    }
+
+    scanBook(scanCode) {
+      if (!this.state.isScanning) {
+        return { error: 'Start a checkout session before scanning.' };
+      }
+
+      const normalizedCode = String(scanCode || '').trim();
+      if (!normalizedCode) {
+        return { error: 'Please scan a barcode or enter an ISBN.' };
+      }
+
+      const duplicate = this.state.scannedBooks.some((book) => (
+        book.scanCode === normalizedCode || book.isbn === normalizedCode
+      ));
+      if (duplicate) {
+        return { error: 'That book has already been scanned for this checkout.' };
+      }
+
+      const book = this.findBookByCode(normalizedCode);
+      if (!book) {
+        return { error: `No catalog match was found for code ${normalizedCode}.` };
+      }
+
+      if (book.status !== 'available') {
+        return { error: `"${book.title}" is currently ${formatBookStatus(book.status)}.` };
+      }
+
+      const dueDate = this.buildDueDate();
+      const scannedBook = {
+        id: book.id,
+        scanCode: normalizedCode,
+        isbn: book.isbn,
+        title: book.title,
+        author: book.author,
+        dueDate,
+      };
+
+      this.state.scannedBooks.push(scannedBook);
+      return { book: scannedBook };
+    }
+
+    completeSession() {
+      if (!this.state.isScanning) {
+        return { error: 'No active checkout session was found.' };
+      }
+
+      if (this.state.scannedBooks.length === 0) {
+        return { error: 'Scan at least one book before completing checkout.' };
+      }
+
+      const summary = {
+        patron: { ...this.state.patron },
+        books: this.state.scannedBooks.map((book) => ({ ...book })),
+        dueDate: this.state.scannedBooks[0].dueDate,
+      };
+
+      summary.books.forEach((scannedBook) => {
+        const catalogBook = booksDatabase.find((book) => book.id === scannedBook.id);
+        if (catalogBook) {
+          catalogBook.status = 'checked-out';
+          catalogBook.dueDate = scannedBook.dueDate;
+        }
+      });
+
+      this.reset();
+      return { summary };
+    }
+
+    findBookByCode(scanCode) {
+      const normalizedCode = scanCode.toLowerCase();
+
+      return booksDatabase.find((book) => {
+        const possibleCodes = [book.isbn, book.id, book.barcode]
+          .filter(Boolean)
+          .map((value) => String(value).toLowerCase());
+
+        return possibleCodes.includes(normalizedCode);
+      });
+    }
+
+    buildDueDate() {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + this.config.loanPeriodDays);
+      return dueDate.toISOString().split('T')[0];
+    }
+
+    getStats() {
+      return {
+        patron: this.state.patron,
+        totalScanned: this.state.scannedBooks.length,
+        scannedBooks: this.state.scannedBooks.map((book) => ({ ...book })),
+        dueDate: this.state.scannedBooks[0]?.dueDate || null,
+        isScanning: this.state.isScanning,
+      };
+    }
+
+    reset() {
+      this.state = {
+        patron: null,
+        scannedBooks: [],
+        isScanning: false,
+      };
+    }
+  }
+
+  selfCheckoutManager = new SelfCheckoutManager({
+    loanPeriodDays: 14,
+  });
+
+  updateSelfCheckoutUI();
+  console.log('Self checkout system initialized');
+}
  
 /**
  * Book Returns Functions
@@ -693,6 +985,645 @@ function exitBookReturns() {
   bookReturnsManager.state.currentBook = null;
   returnToDefault();
 }
+
+/**
+ * Self Checkout Functions
+ */
+function startSelfCheckout() {
+  if (selfCheckoutManager) {
+    selfCheckoutManager.reset();
+  }
+
+  const nameInput = document.getElementById('checkoutNameInput');
+  const idInput = document.getElementById('checkoutIdInput');
+  const scanInput = document.getElementById('checkoutScanInput');
+
+  if (nameInput) nameInput.value = '';
+  if (idInput) idInput.value = '';
+  if (scanInput) scanInput.value = '';
+
+  updateSelfCheckoutUI();
+  setSelfCheckoutStatus('Enter your name and ID number to begin.', 'info');
+  switchScreen('selfCheckoutPatronScreen');
+  resetInactivityTimer();
+
+  setTimeout(() => {
+    if (nameInput) {
+      nameInput.focus();
+    }
+  }, 300);
+}
+
+function beginSelfCheckout() {
+  const nameInput = document.getElementById('checkoutNameInput');
+  const idInput = document.getElementById('checkoutIdInput');
+  const patronName = nameInput ? nameInput.value.trim() : '';
+  const patronId = idInput ? idInput.value.trim() : '';
+
+  if (!patronName || !patronId) {
+    alert('Please enter both your name and ID number before continuing.');
+    resetInactivityTimer();
+    return;
+  }
+
+  selfCheckoutManager.startSession({
+    name: patronName,
+    idNumber: patronId,
+  });
+
+  updateSelfCheckoutUI();
+  setSelfCheckoutStatus('Waiting for the first scan...', 'info');
+  switchScreen('selfCheckoutScanScreen');
+  resetInactivityTimer();
+
+  setTimeout(() => {
+    const scanInput = document.getElementById('checkoutScanInput');
+    if (scanInput) {
+      scanInput.focus();
+    }
+  }, 300);
+}
+
+function handleSelfCheckoutScan(scanCode = null) {
+  if (!selfCheckoutManager) {
+    return;
+  }
+
+  const scanInput = document.getElementById('checkoutScanInput');
+  const valueToScan = scanCode || (scanInput ? scanInput.value : '');
+  const result = selfCheckoutManager.scanBook(valueToScan);
+
+  if (result.error) {
+    setSelfCheckoutStatus(result.error, 'error');
+    resetInactivityTimer();
+    return;
+  }
+
+  if (scanInput) {
+    scanInput.value = '';
+    scanInput.focus();
+  }
+
+  updateSelfCheckoutUI();
+  setSelfCheckoutStatus(`Added "${result.book.title}" to this checkout.`, 'success');
+  resetInactivityTimer();
+}
+
+function simulateCheckoutScan() {
+  if (!selfCheckoutManager) {
+    return;
+  }
+
+  const scannedIsbns = new Set(
+    selfCheckoutManager.getStats().scannedBooks.map((book) => book.isbn)
+  );
+  const availableBook = booksDatabase.find((book) => (
+    book.status === 'available' && !scannedIsbns.has(book.isbn)
+  ));
+
+  if (!availableBook) {
+    setSelfCheckoutStatus('No available books are left to simulate.', 'error');
+    resetInactivityTimer();
+    return;
+  }
+
+  handleSelfCheckoutScan(availableBook.isbn);
+}
+
+function completeSelfCheckout() {
+  if (!selfCheckoutManager) {
+    return;
+  }
+
+  const result = selfCheckoutManager.completeSession();
+  if (result.error) {
+    setSelfCheckoutStatus(result.error, 'error');
+    resetInactivityTimer();
+    return;
+  }
+
+  updateSelfCheckoutUI();
+  alert(
+    `${result.summary.books.length} book(s) checked out to ${result.summary.patron.name}.\n\nDue date: ${formatDate(result.summary.dueDate)}`
+  );
+  showThankYou();
+}
+
+function exitSelfCheckout() {
+  if (selfCheckoutManager) {
+    selfCheckoutManager.reset();
+  }
+
+  const nameInput = document.getElementById('checkoutNameInput');
+  const idInput = document.getElementById('checkoutIdInput');
+  const scanInput = document.getElementById('checkoutScanInput');
+
+  if (nameInput) nameInput.value = '';
+  if (idInput) idInput.value = '';
+  if (scanInput) scanInput.value = '';
+
+  updateSelfCheckoutUI();
+  returnToDefault();
+}
+
+function updateSelfCheckoutUI() {
+  const stats = selfCheckoutManager ? selfCheckoutManager.getStats() : {
+    patron: null,
+    totalScanned: 0,
+    scannedBooks: [],
+    dueDate: null,
+    isScanning: false,
+  };
+
+  const patronSummary = document.getElementById('checkoutPatronSummary');
+  const scannedCount = document.getElementById('checkoutScannedCount');
+  const dueDate = document.getElementById('checkoutDueDate');
+  const scannedBooks = document.getElementById('checkoutScannedBooks');
+
+  if (patronSummary) {
+    patronSummary.textContent = stats.patron
+      ? `Patron: ${stats.patron.name} • ID: ${stats.patron.idNumber}`
+      : 'Patron: Not started';
+  }
+
+  if (scannedCount) {
+    scannedCount.textContent = String(stats.totalScanned);
+  }
+
+  if (dueDate) {
+    dueDate.textContent = stats.dueDate ? formatDate(stats.dueDate) : '--';
+  }
+
+  if (scannedBooks) {
+    if (stats.scannedBooks.length === 0) {
+      scannedBooks.innerHTML = '<div class="checkout-empty">No books scanned yet.</div>';
+    } else {
+      scannedBooks.innerHTML = stats.scannedBooks.map(createCheckoutBookCard).join('');
+    }
+  }
+}
+
+function createCheckoutBookCard(book) {
+  return `
+    <div class="checkout-book-item">
+      <div class="checkout-book-title">${escapeHtml(book.title)}</div>
+      <div class="checkout-book-meta">by ${escapeHtml(book.author)}</div>
+      <div class="checkout-book-meta">ISBN: ${escapeHtml(book.isbn)}</div>
+      <div class="checkout-book-due">Due ${escapeHtml(formatDate(book.dueDate))}</div>
+    </div>
+  `;
+}
+
+function setSelfCheckoutStatus(message, type = 'info') {
+  const status = document.getElementById('checkoutScanStatus');
+  if (!status) {
+    return;
+  }
+
+  status.textContent = message;
+  status.className = 'checkout-status-message';
+
+  if (type === 'error' || type === 'success') {
+    status.classList.add(type);
+  }
+}
+
+function formatBookStatus(status) {
+  if (status === 'checked-out') return 'checked out and unavailable';
+  if (status === 'on-hold') return 'on hold and unavailable';
+  return status.replace(/-/g, ' ');
+}
+
+/**
+ * Voice Assistant Functions
+ */
+function initializeVoiceAssistant() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  speechRecognitionSupported = Boolean(SpeechRecognition && window.speechSynthesis);
+
+  if (!speechRecognitionSupported) {
+    updateVoiceAssistantUI({
+      status: 'Voice chat is not available in this browser.',
+      message: 'This proof of concept needs a browser with Web Speech support, such as Chrome or Edge.',
+      transcript: 'Voice recognition unavailable.',
+      buttonLabel: 'Voice Unavailable',
+      listening: false,
+      speaking: false,
+    });
+    return;
+  }
+
+  speechRecognition = new SpeechRecognition();
+  speechRecognition.lang = 'en-US';
+  speechRecognition.interimResults = true;
+  speechRecognition.continuous = true;
+  speechRecognition.maxAlternatives = 1;
+
+  speechRecognition.onstart = () => {
+    manualVoiceStopRequested = false;
+    isVoiceListening = true;
+    lastVoiceRecognitionError = '';
+    updateVoiceAssistantUI({
+      status: 'Listening...',
+      message: 'I am listening. Ask me a library question.',
+      transcript: 'Go ahead, I am ready.',
+      buttonLabel: 'Stop Listening',
+      listening: true,
+      speaking: false,
+    });
+  };
+
+  speechRecognition.onresult = (event) => {
+    const transcript = Array.from(event.results)
+      .map((result) => result[0]?.transcript || '')
+      .join(' ')
+      .trim();
+
+    if (!transcript) {
+      return;
+    }
+
+    updateVoiceAssistantUI({
+      status: event.results[event.results.length - 1].isFinal ? 'Thinking...' : 'Listening...',
+      message: event.results[event.results.length - 1].isFinal
+        ? 'Let me think about that.'
+        : 'I am still listening.',
+      transcript: `You said: "${transcript}"`,
+      buttonLabel: 'Stop Listening',
+      listening: true,
+      speaking: false,
+    });
+
+    if (event.results[event.results.length - 1].isFinal) {
+      pendingVoiceResponse = transcript;
+    }
+  };
+
+  speechRecognition.onerror = (event) => {
+    isVoiceListening = false;
+    lastVoiceRecognitionError = event.error;
+
+    if (manualVoiceStopRequested) {
+      return;
+    }
+
+    const recoverableErrors = ['no-speech', 'aborted'];
+    if (voiceSessionActive && recoverableErrors.includes(event.error)) {
+      updateVoiceAssistantUI({
+        status: 'Listening...',
+        message: event.error === 'no-speech'
+          ? 'I did not hear anything yet, but I am still listening.'
+          : 'The microphone session was interrupted. I am reconnecting now.',
+        transcript: `Debug: recognition error "${event.error}" - auto retrying.`,
+        buttonLabel: 'Stop Listening',
+        listening: false,
+        speaking: false,
+      });
+      scheduleVoiceRecognitionRestart();
+      return;
+    }
+
+    manualVoiceStopRequested = false;
+    voiceSessionActive = false;
+    clearVoiceRestartTimeout();
+    const message = event.error === 'not-allowed'
+      ? 'Microphone access was blocked. Please allow microphone access to use voice chat.'
+      : event.error === 'audio-capture'
+        ? 'No microphone input was found. Please check that a microphone is connected and allowed.'
+        : 'I ran into a microphone issue. Please try again.';
+
+    updateVoiceAssistantUI({
+      status: 'Voice Error',
+      message,
+      transcript: `Debug: recognition error "${event.error}"`,
+      buttonLabel: 'Speak',
+      listening: false,
+      speaking: false,
+    });
+  };
+
+  speechRecognition.onend = () => {
+    const latestTranscript = pendingVoiceResponse;
+    isVoiceListening = false;
+
+    if (manualVoiceStopRequested) {
+      manualVoiceStopRequested = false;
+      voiceSessionActive = false;
+      clearVoiceRestartTimeout();
+      updateVoiceAssistantUI({
+        status: 'Ready to talk',
+        message: 'Tap Speak whenever you would like to talk.',
+        transcript: 'Listening stopped.',
+        buttonLabel: 'Speak',
+        listening: false,
+        speaking: false,
+      });
+      return;
+    }
+
+    if (latestTranscript) {
+      pendingVoiceResponse = '';
+      handleVoiceAssistantPrompt(latestTranscript);
+      scheduleVoiceRecognitionRestart();
+      return;
+    }
+
+    if (voiceSessionActive && !isVoiceSpeaking) {
+      updateVoiceAssistantUI({
+        status: 'Listening...',
+        message: 'I am still listening. Click the button whenever you want me to stop.',
+        transcript: lastVoiceRecognitionError
+          ? `Debug: recognition ended after "${lastVoiceRecognitionError}". Waiting for your next question...`
+          : 'Waiting for your next question...',
+        buttonLabel: 'Stop Listening',
+        listening: false,
+        speaking: false,
+      });
+      scheduleVoiceRecognitionRestart();
+      return;
+    }
+
+    if (!isVoiceSpeaking) {
+      updateVoiceAssistantUI({
+        status: 'Ready to talk',
+        message: 'Tap Speak whenever you would like to talk.',
+        transcript: 'Listening stopped.',
+        buttonLabel: 'Speak',
+        listening: false,
+        speaking: false,
+      });
+    }
+  };
+
+  updateVoiceAssistantUI({
+    status: 'Ready to talk',
+    message: 'Tap Speak and I will listen like a friendly library robot.',
+    transcript: 'Listening transcript will appear here.',
+    buttonLabel: 'Speak',
+    listening: false,
+    speaking: false,
+  });
+}
+
+function toggleVoiceAssistant() {
+  if (!speechRecognitionSupported || !speechRecognition) {
+    updateVoiceAssistantUI({
+      status: 'Voice Unavailable',
+      message: 'Voice chat needs browser speech recognition and speech synthesis support.',
+      transcript: 'Try Chrome or Edge for this proof of concept.',
+      buttonLabel: 'Voice Unavailable',
+      listening: false,
+      speaking: false,
+    });
+    return;
+  }
+
+  resetInactivityTimer();
+
+  if (isVoiceListening) {
+    manualVoiceStopRequested = true;
+    voiceSessionActive = false;
+    clearVoiceRestartTimeout();
+    speechRecognition.stop();
+    return;
+  }
+
+  if (isVoiceSpeaking) {
+    window.speechSynthesis.cancel();
+    isVoiceSpeaking = false;
+  }
+
+  pendingVoiceResponse = '';
+  manualVoiceStopRequested = false;
+  voiceSessionActive = true;
+  voiceConversationHistory = [];
+  clearVoiceRestartTimeout();
+  speechRecognition.start();
+}
+
+function speakRobotResponse(response, transcript) {
+  if (!window.speechSynthesis) {
+    return;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(response);
+  utterance.rate = 1;
+  utterance.pitch = 1.05;
+  utterance.volume = 1;
+
+  const voices = window.speechSynthesis.getVoices();
+  const preferredVoice = voices.find((voice) => /Samantha|Google US English|Microsoft Aria|Karen/i.test(voice.name));
+  if (preferredVoice) {
+    utterance.voice = preferredVoice;
+  }
+
+  utterance.onstart = () => {
+    isVoiceSpeaking = true;
+    updateVoiceAssistantUI({
+      status: 'Speaking...',
+      message: response,
+      transcript: `You said: "${transcript}"`,
+      buttonLabel: voiceSessionActive ? 'Stop Listening' : 'Speak Again',
+      listening: false,
+      speaking: true,
+    });
+  };
+
+  utterance.onend = () => {
+    isVoiceSpeaking = false;
+    updateVoiceAssistantUI({
+      status: voiceSessionActive ? 'Listening...' : 'Ready to talk',
+      message: response,
+      transcript: `You said: "${transcript}"`,
+      buttonLabel: voiceSessionActive ? 'Stop Listening' : 'Speak Again',
+      listening: false,
+      speaking: false,
+    });
+
+    if (voiceSessionActive) {
+      scheduleVoiceRecognitionRestart();
+    }
+  };
+
+  utterance.onerror = () => {
+    isVoiceSpeaking = false;
+    updateVoiceAssistantUI({
+      status: 'Voice Error',
+      message: response,
+      transcript: `You said: "${transcript}"`,
+      buttonLabel: 'Speak Again',
+      listening: false,
+      speaking: false,
+    });
+  };
+
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(utterance);
+}
+
+function updateVoiceAssistantUI({
+  status,
+  message,
+  transcript,
+  buttonLabel,
+  listening = false,
+  speaking = false,
+}) {
+  if (elements.robotStatusText && status) {
+    elements.robotStatusText.textContent = status;
+  }
+
+  if (elements.voiceAssistantMessage && message) {
+    elements.voiceAssistantMessage.textContent = message;
+  }
+
+  if (elements.voiceTranscriptText && transcript) {
+    elements.voiceTranscriptText.textContent = transcript;
+  }
+
+  if (elements.speakButton && buttonLabel) {
+    elements.speakButton.textContent = buttonLabel;
+  }
+
+  if (elements.robotFace) {
+    elements.robotFace.classList.toggle('listening', listening);
+    elements.robotFace.classList.toggle('speaking', speaking);
+  }
+}
+
+function generateRobotVoiceReply(transcript) {
+  const lower = transcript.toLowerCase();
+
+  if (matchesAny(lower, ['hello', 'hi', 'hey', 'good morning', 'good afternoon'])) {
+    return 'Hello there. I am your friendly library robot. I can help with returns, self checkout, book status, directions, printing, and general library questions.';
+  }
+
+  if (matchesAny(lower, ['hours', 'open', 'close', 'closing time'])) {
+    return 'I am only a proof of concept robot, so I do not have live hours yet. Please check the front desk or the library website for today\'s schedule.';
+  }
+
+  if (matchesAny(lower, ['return', 'book return', 'drop off'])) {
+    return 'You can use the Book Returns option on the menu. Scan each item and I will guide you through the return flow.';
+  }
+
+  if (matchesAny(lower, ['checkout', 'borrow', 'check out'])) {
+    return 'You can choose Self Checkout from the menu. I will ask for your name and ID number, then help you scan your books.';
+  }
+
+  if (matchesAny(lower, ['status', 'find a book', 'search', 'where is my book', 'book status'])) {
+    return 'Try the Check Book Status option from the menu. You can search by title, author, or ISBN.';
+  }
+
+  if (matchesAny(lower, ['print', 'printer', 'printing'])) {
+    return 'For printing help, I can point you toward the print room and the front desk can help with account or payment issues.';
+  }
+
+  if (matchesAny(lower, ['bathroom', 'restroom', 'where is'])) {
+    return 'I can help with directions in a future version. For now, please ask the front desk for the fastest route.';
+  }
+
+  if (matchesAny(lower, ['thank you', 'thanks'])) {
+    return 'You are very welcome. I am happy to help.';
+  }
+
+  if (matchesAny(lower, ['who are you', 'your name', 'what are you'])) {
+    return 'I am a friendly library robot prototype. I listen, respond, and help visitors get to the right library service.';
+  }
+
+  return 'I heard you, and I am still learning. I can best help with book returns, self checkout, book status, printing, and basic library guidance.';
+}
+
+function matchesAny(text, phrases) {
+  return phrases.some((phrase) => text.includes(phrase));
+}
+
+async function handleVoiceAssistantPrompt(transcript) {
+  updateVoiceAssistantUI({
+    status: 'Thinking...',
+    message: 'Let me think about that.',
+    transcript: `You said: "${transcript}"`,
+    buttonLabel: voiceSessionActive ? 'Stop Listening' : 'Speak Again',
+    listening: false,
+    speaking: false,
+  });
+
+  const response = await fetchRobotVoiceReply(transcript);
+
+  voiceConversationHistory.push({ role: 'user', content: transcript });
+  voiceConversationHistory.push({ role: 'assistant', content: response });
+  voiceConversationHistory = voiceConversationHistory.slice(-8);
+
+  speakRobotResponse(response, transcript);
+}
+
+async function fetchRobotVoiceReply(transcript) {
+  try {
+    const response = await fetch('/api/chatbot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        message: transcript,
+        history: voiceConversationHistory,
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Chatbot request failed.');
+    }
+
+    if (data.reply && typeof data.reply === 'string') {
+      return data.reply;
+    }
+
+    throw new Error('Chatbot response did not include reply text.');
+  } catch (error) {
+    console.error('Voice assistant API fallback:', error);
+    return generateRobotVoiceReply(transcript);
+  }
+}
+
+function isVoiceAssistantActive() {
+  return voiceSessionActive || isVoiceListening || isVoiceSpeaking;
+}
+
+function scheduleVoiceRecognitionRestart() {
+  if (!voiceSessionActive || manualVoiceStopRequested || isVoiceListening) {
+    return;
+  }
+
+  clearVoiceRestartTimeout();
+  voiceRestartTimeout = setTimeout(() => {
+    if (!voiceSessionActive || manualVoiceStopRequested || isVoiceListening || isVoiceSpeaking) {
+      return;
+    }
+
+    try {
+      updateVoiceAssistantUI({
+        status: 'Listening...',
+        message: 'I am listening. Ask me a library question.',
+        transcript: lastVoiceRecognitionError
+          ? `Debug: restarting after "${lastVoiceRecognitionError}".`
+          : 'Debug: restarting microphone session.',
+        buttonLabel: 'Stop Listening',
+        listening: false,
+        speaking: false,
+      });
+      speechRecognition.start();
+    } catch (error) {
+      console.warn('Voice recognition restart skipped:', error);
+    }
+  }, 250);
+}
+
+function clearVoiceRestartTimeout() {
+  if (voiceRestartTimeout) {
+    clearTimeout(voiceRestartTimeout);
+    voiceRestartTimeout = null;
+  }
+}
  
 /**
  * Reset inactivity timer (called on any user interaction)
@@ -752,9 +1683,25 @@ function returnToDefault() {
       bookReturnsManager.state.currentBook = null;
       console.log('Book returns session ended - scanned count reset');
     }
+
+    if (currentScreen === 'selfCheckoutPatronScreen' || currentScreen === 'selfCheckoutScanScreen') {
+      if (selfCheckoutManager) {
+        selfCheckoutManager.reset();
+      }
+      updateSelfCheckoutUI();
+      console.log('Self checkout session ended - checkout state reset');
+    }
     
     switchScreen('defaultScreen');
     previousScreenBeforeAdmin = 'defaultScreen';
+    updateVoiceAssistantUI({
+      status: 'Waiting to help you...',
+      message: 'Tap Speak and ask me about books, directions, hours, printing, or general library help.',
+      transcript: 'Listening transcript will appear here.',
+      buttonLabel: 'Speak',
+      listening: false,
+      speaking: false,
+    });
     
     // Clear all timers
     if (inactivityTimeout) {
@@ -797,15 +1744,18 @@ function switchScreen(screenId) {
 }
  
 function showWelcome() {
+  stopVoiceAssistant();
   switchScreen('welcomeScreen');
 }
  
 function showMenu() {
+  stopVoiceAssistant();
   switchScreen('menuScreen');
   resetInactivityTimer();
 }
  
 function showThankYou() {
+  stopVoiceAssistant();
   switchScreen('thankYouScreen');
   
   // Clear timers since we're showing thank you
@@ -831,6 +1781,8 @@ function handleSelection(option) {
   // Route to appropriate feature
   if (option === 'Book Returns') {
     startBookReturns();
+  } else if (option === 'Self Checkout') {
+    startSelfCheckout();
   } else if (option === 'Book Status') {
     startBookStatus();
   } else {
@@ -1146,7 +2098,10 @@ function createBookCard(book) {
 }
  
 function formatDate(dateString) {
-  const date = new Date(dateString);
+  const parts = String(dateString).split('-').map(Number);
+  const date = parts.length === 3 && parts.every(Number.isFinite)
+    ? new Date(parts[0], parts[1] - 1, parts[2])
+    : new Date(dateString);
   const options = { month: 'short', day: 'numeric', year: 'numeric' };
   return date.toLocaleDateString('en-US', options);
 }
@@ -1166,8 +2121,59 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
     }
+
+    const checkoutNameInput = document.getElementById('checkoutNameInput');
+    const checkoutIdInput = document.getElementById('checkoutIdInput');
+    const checkoutScanInput = document.getElementById('checkoutScanInput');
+
+    [checkoutNameInput, checkoutIdInput].forEach((input) => {
+      if (input) {
+        input.addEventListener('keypress', (e) => {
+          if (e.key === 'Enter') {
+            beginSelfCheckout();
+          }
+        });
+      }
+    });
+
+    if (checkoutScanInput) {
+      checkoutScanInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          handleSelfCheckoutScan();
+        }
+      });
+    }
   }, 1000);
 });
+
+function stopVoiceAssistant() {
+  pendingVoiceResponse = '';
+  manualVoiceStopRequested = false;
+  voiceSessionActive = false;
+  voiceConversationHistory = [];
+  clearVoiceRestartTimeout();
+
+  if (speechRecognition && isVoiceListening) {
+    manualVoiceStopRequested = true;
+    speechRecognition.stop();
+  }
+
+  if (window.speechSynthesis) {
+    window.speechSynthesis.cancel();
+  }
+
+  isVoiceListening = false;
+  isVoiceSpeaking = false;
+
+  updateVoiceAssistantUI({
+    status: currentScreen === 'defaultScreen' ? 'Waiting to help you...' : 'Ready',
+    message: 'Tap Speak and ask me about books, directions, hours, printing, or general library help.',
+    transcript: 'Listening transcript will appear here.',
+    buttonLabel: speechRecognitionSupported ? 'Speak' : 'Voice Unavailable',
+    listening: false,
+    speaking: false,
+  });
+}
  
 /**
  * Utility functions
@@ -1213,6 +2219,8 @@ function throttle(func, wait) {
  * Cleanup on page unload
  */
 window.addEventListener('beforeunload', () => {
+  stopVoiceAssistant();
+
   if (faceDetector) {
     faceDetector.stop();
   }
