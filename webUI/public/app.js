@@ -1227,7 +1227,7 @@ function initializeVoiceAssistant() {
       status: 'Listening...',
       message: 'I am listening. Ask me a library question.',
       transcript: 'Go ahead, I am ready.',
-      buttonLabel: 'Stop Listening',
+      buttonLabel: 'Stop',
       listening: true,
       speaking: false,
     });
@@ -1249,7 +1249,7 @@ function initializeVoiceAssistant() {
         ? 'Let me think about that.'
         : 'I am still listening.',
       transcript: `You said: "${transcript}"`,
-      buttonLabel: 'Stop Listening',
+      buttonLabel: 'Stop',
       listening: true,
       speaking: false,
     });
@@ -1275,7 +1275,7 @@ function initializeVoiceAssistant() {
           ? 'I did not hear anything yet, but I am still listening.'
           : 'The microphone session was interrupted. I am reconnecting now.',
         transcript: `Debug: recognition error "${event.error}" - auto retrying.`,
-        buttonLabel: 'Stop Listening',
+        buttonLabel: 'Stop',
         listening: false,
         speaking: false,
       });
@@ -1335,7 +1335,7 @@ function initializeVoiceAssistant() {
         transcript: lastVoiceRecognitionError
           ? `Debug: recognition ended after "${lastVoiceRecognitionError}". Waiting for your next question...`
           : 'Waiting for your next question...',
-        buttonLabel: 'Stop Listening',
+        buttonLabel: 'Stop',
         listening: false,
         speaking: false,
       });
@@ -1423,7 +1423,7 @@ function speakRobotResponse(response, transcript) {
       status: 'Speaking...',
       message: response,
       transcript: `You said: "${transcript}"`,
-      buttonLabel: voiceSessionActive ? 'Stop Listening' : 'Speak Again',
+      buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
       listening: false,
       speaking: true,
     });
@@ -1435,7 +1435,7 @@ function speakRobotResponse(response, transcript) {
       status: voiceSessionActive ? 'Listening...' : 'Ready to talk',
       message: response,
       transcript: `You said: "${transcript}"`,
-      buttonLabel: voiceSessionActive ? 'Stop Listening' : 'Speak Again',
+      buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
       listening: false,
       speaking: false,
     });
@@ -1488,6 +1488,15 @@ function updateVoiceAssistantUI({
   if (elements.robotFace) {
     elements.robotFace.classList.toggle('listening', listening);
     elements.robotFace.classList.toggle('speaking', speaking);
+  }
+
+  // Drive voice bars from mic/sine waves instead of uniform CSS
+  if (listening) {
+    VoiceVisualizer.startListening();
+  } else if (speaking) {
+    VoiceVisualizer.startSpeaking();
+  } else {
+    VoiceVisualizer.stop();
   }
 }
 
@@ -1542,7 +1551,7 @@ async function handleVoiceAssistantPrompt(transcript) {
     status: 'Thinking...',
     message: 'Let me think about that.',
     transcript: `You said: "${transcript}"`,
-    buttonLabel: voiceSessionActive ? 'Stop Listening' : 'Speak Again',
+    buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
     listening: false,
     speaking: false,
   });
@@ -1607,7 +1616,7 @@ function scheduleVoiceRecognitionRestart() {
         transcript: lastVoiceRecognitionError
           ? `Debug: restarting after "${lastVoiceRecognitionError}".`
           : 'Debug: restarting microphone session.',
-        buttonLabel: 'Stop Listening',
+        buttonLabel: 'Stop',
         listening: false,
         speaking: false,
       });
@@ -1785,6 +1794,10 @@ function handleSelection(option) {
     startSelfCheckout();
   } else if (option === 'Book Status') {
     startBookStatus();
+  } else if (option === 'Ask Me Anything') {
+    // Route to voice assistant on default screen
+    switchScreen('defaultScreen');
+    toggleVoiceAssistant();
   } else {
     // Other features - implement as needed
     alert(`You selected: ${option}\n\nThis would connect to the ${option.toLowerCase()} system.`);
@@ -2145,6 +2158,107 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }, 1000);
 });
+
+/**
+ * Mic-reactive voice visualizer
+ * - Listening: drives bars from real microphone frequency data via Web Audio API
+ * - Speaking: organic sine-wave simulation so each bar moves independently
+ */
+const VoiceVisualizer = (() => {
+  let audioCtx = null, analyser = null, micSource = null, micStream = null;
+  let rafId = null, mode = null, cleanupTimer = null, speakingT = 0;
+  let _bars = null;
+
+  function cacheBars() {
+    const c = document.querySelector('.voice-visualizer');
+    _bars = c ? Array.from(c.children) : [];
+  }
+
+  // Listening: just read mic frequency bins, map directly to bar heights
+  function drawListening() {
+    if (mode !== 'listening') return;
+    if (analyser) {
+      const freq = new Uint8Array(analyser.frequencyBinCount);
+      analyser.getByteFrequencyData(freq);
+      const n = _bars.length;
+      const skip = 4;
+      const usable = freq.length - skip;
+      for (let i = 0; i < n; i++) {
+        const bin = skip + Math.floor((i / n) * usable * 0.5);
+        const h = Math.max(6, (freq[bin] / 255) * 55);
+        _bars[i].style.height = h + '%';
+      }
+    }
+    rafId = requestAnimationFrame(drawListening);
+  }
+
+  // Speaking: simple sine-wave simulation
+  function drawSpeaking() {
+    if (mode !== 'speaking') return;
+    speakingT += 0.04;
+    for (let i = 0; i < _bars.length; i++) {
+      const wave =
+        Math.sin(speakingT * (1.4 + i * 0.25) + i * 0.9) * 0.18 +
+        Math.sin(speakingT * (2.0 - i * 0.12) + i * 1.26) * 0.14 +
+        Math.sin(speakingT * 0.5 + i) * 0.08;
+      const h = Math.max(6, (0.12 + (wave + 0.4) * 0.28) * 100);
+      _bars[i].style.height = h + '%';
+    }
+    rafId = requestAnimationFrame(drawSpeaking);
+  }
+
+  async function startListening() {
+    stop();
+    if (cleanupTimer) { clearTimeout(cleanupTimer); cleanupTimer = null; }
+    mode = 'listening';
+    cacheBars();
+    try {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 128;
+      analyser.smoothingTimeConstant = 0.6;
+      analyser.minDecibels = -80;
+      analyser.maxDecibels = -10;
+      micStream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true }
+      });
+      micSource = audioCtx.createMediaStreamSource(micStream);
+      const gain = audioCtx.createGain();
+      gain.gain.value = 2.5;
+      micSource.connect(gain);
+      gain.connect(analyser);
+    } catch (e) {
+      analyser = null;
+    }
+    drawListening();
+  }
+
+  function startSpeaking() {
+    stop();
+    if (cleanupTimer) { clearTimeout(cleanupTimer); cleanupTimer = null; }
+    mode = 'speaking';
+    speakingT = 0;
+    cacheBars();
+    drawSpeaking();
+  }
+
+  function stop() {
+    mode = null;
+    if (cleanupTimer) { clearTimeout(cleanupTimer); cleanupTimer = null; }
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (micSource) { micSource.disconnect(); micSource = null; }
+    if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+    if (audioCtx) { audioCtx.close().catch(() => {}); audioCtx = null; analyser = null; }
+    const bars = _bars || [];
+    bars.forEach(b => b.style.height = '6%');
+    cleanupTimer = setTimeout(() => {
+      if (mode === null) bars.forEach(b => b.style.height = '');
+      cleanupTimer = null;
+    }, 600);
+  }
+
+  return { startListening, startSpeaking, stop };
+})();
 
 function stopVoiceAssistant() {
   pendingVoiceResponse = '';
