@@ -1663,10 +1663,12 @@ void main(){
   vec3 rd=normalize(vec3(uv,-1.5));
 
   float d=0.0;
+  float minDist=999.0;
   bool hit=false;
   for(int i=0;i<96;i++){
     vec3 p=ro+rd*d;
     float s=sdf(p);
+    if(s<minDist) minDist=s;
     if(s<0.0008){hit=true;break;}
     if(d>5.0)break;
     d+=s;
@@ -1689,18 +1691,25 @@ void main(){
     float film=1.3+noise(p*3.0+t*0.1)*0.5;
     vec3 irid=iridescence(viewAngle,film);
 
-    // Button-matched palette — cycles speak(blue/purple) ↔ menu(blue/green)
+    // All button colors flowing across surface — purple-forward
     vec3 blue=vec3(0.0,0.478,1.0);
     vec3 purple=vec3(0.545,0.361,0.965);
     vec3 green=vec3(0.204,0.780,0.349);
-    // Slow drift between speak and menu palettes
-    float drift=0.5+0.5*sin(t*0.12);
-    vec3 accent=mix(purple,green,drift);
-    float b1=0.5+0.5*sin(viewAngle*3.0+t*0.2);
-    vec3 baseTint=mix(blue,accent,b1);
+    // Noise-driven spatial flow
+    vec3 fp=rotY(t*0.08)*p;
+    float n1=noise(fp*1.8+t*0.1)*0.5+0.5;
+    float n2=noise(fp*1.8+vec3(7.3,2.1,5.6)+t*0.08)*0.5+0.5;
+    // Cyan-green flow — separate noise channel, faster motion
+    vec3 cyan=vec3(0.0,0.85,0.8);
+    float n3=noise(fp*2.2+vec3(3.1,9.4,1.7)+t*0.18)*0.5+0.5;
+    float cyanFlow=smoothstep(0.45,0.75,n3);
 
-    // Less iridescence wash — keep base colors punchier
-    vec3 surfCol=mix(baseTint,irid*1.2,0.3+rimThick*0.2);
+    // Purple-dominant blend with blue accents + cyan-green streams
+    vec3 baseTint=mix(purple,blue,n1*0.55)+green*n2*0.15;
+    baseTint=mix(baseTint,cyan,cyanFlow*0.35);
+
+    // Minimal iridescence — keep base colors punchy
+    vec3 surfCol=mix(baseTint,irid*1.1,0.15+rimThick*0.1);
 
     // Specular highlights
     vec3 L1=normalize(vec3(-0.5,0.7,0.8));
@@ -1717,8 +1726,13 @@ void main(){
 
     col.rgb=surfCol*bright+specCol;
 
-    // Match button vibrancy — enough alpha for color to pop
-    col.a=rimThick*0.55;
+    // Enough alpha for saturated color
+    col.a=rimThick*0.6;
+  } else {
+    // Purple glow follows orb shape — wider gradient falloff
+    float g=smoothstep(0.18,0.0,minDist);
+    vec3 gc=vec3(0.545,0.361,0.965);
+    col=vec4(gc,g*g*0.11);
   }
 
   gl_FragColor=col;
@@ -1809,6 +1823,9 @@ void main(){
         time += 0.016;
         // Smooth mic level — slight damping to avoid spikes
         smoothMic += (micLevel - smoothMic) * 0.08;
+        // Inverse exponential scale: 1.0 → max 1.3, saturates quickly
+        const micScale = 1.0 + 0.3 * (1.0 - Math.exp(-smoothMic * 5.0));
+        canvas.style.transform = `translate(-50%, -50%) scale(${micScale})`;
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
