@@ -1639,10 +1639,11 @@ mat3 rotX(float a){float c=cos(a),s=sin(a);return mat3(1,0,0,0,c,-s,0,s,c);}
 
 float sdf(vec3 p){
   vec3 rp=rotY(t*0.195)*rotX(t*0.117)*p;
-  float amt=0.039+mic*0.8;
-  float n=noise(rp*1.2+t*0.3)*amt*0.7
-         +noise(rp*2.5+t*0.49)*amt
-         +noise(rp*4.5-t*0.29)*amt*0.35;
+  float amt=0.055+mic*0.8;
+  // Wider patches — lower frequencies
+  float n=noise(rp*0.9+t*0.3)*amt*0.7
+         +noise(rp*2.0+t*0.49)*amt
+         +noise(rp*3.5-t*0.29)*amt*0.3;
   return length(p)-0.62-n;
 }
 
@@ -1688,17 +1689,18 @@ void main(){
     float film=1.3+noise(p*3.0+t*0.1)*0.5;
     vec3 irid=iridescence(viewAngle,film);
 
-    // Vivid saturated palette
-    vec3 blue=vec3(0.05,0.25,1.0);
-    vec3 purple=vec3(0.55,0.1,0.95);
-    vec3 cyan=vec3(0.05,0.65,1.0);
-    vec3 pink=vec3(0.9,0.2,0.6);
+    // Button-matched palette — cycles speak(blue/purple) ↔ menu(blue/green)
+    vec3 blue=vec3(0.0,0.478,1.0);
+    vec3 purple=vec3(0.545,0.361,0.965);
+    vec3 green=vec3(0.204,0.780,0.349);
+    // Slow drift between speak and menu palettes
+    float drift=0.5+0.5*sin(t*0.12);
+    vec3 accent=mix(purple,green,drift);
     float b1=0.5+0.5*sin(viewAngle*3.0+t*0.2);
-    float b2=0.5+0.5*sin(p.y*4.0+t*0.15);
-    vec3 baseTint=mix(blue,purple,b1)+cyan*0.2+pink*b2*0.15;
+    vec3 baseTint=mix(blue,accent,b1);
 
-    // Iridescence blend
-    vec3 surfCol=mix(baseTint,irid*1.4,0.5+rimThick*0.35);
+    // Less iridescence wash — keep base colors punchier
+    vec3 surfCol=mix(baseTint,irid*1.2,0.3+rimThick*0.2);
 
     // Specular highlights
     vec3 L1=normalize(vec3(-0.5,0.7,0.8));
@@ -1715,8 +1717,8 @@ void main(){
 
     col.rgb=surfCol*bright+specCol;
 
-    // Low alpha = vivid color tint over white, never dark
-    col.a=rimThick*0.45;
+    // Match button vibrancy — enough alpha for color to pop
+    col.a=rimThick*0.55;
   }
 
   gl_FragColor=col;
@@ -1805,8 +1807,8 @@ void main(){
 
       function draw() {
         time += 0.016;
-        // Smooth mic level to avoid jitter
-        smoothMic += (micLevel - smoothMic) * 0.15;
+        // Smooth mic level — slight damping to avoid spikes
+        smoothMic += (micLevel - smoothMic) * 0.08;
         gl.viewport(0, 0, canvas.width, canvas.height);
         gl.clearColor(0, 0, 0, 0);
         gl.clear(gl.COLOR_BUFFER_BIT);
