@@ -1579,15 +1579,41 @@
       var ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Simple noise for deformation
+      var CX = 160, CY = 160, BASE_R = 110;
+      var POINTS = 48;
+      var time2d = 0;
+
+      // Hash-based noise (matches WebGL version's feel)
       function snoise(x, y) {
         var n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
         return (n - Math.floor(n)) * 2.0 - 1.0;
       }
+      function fbm(x, y) {
+        return snoise(x, y) * 0.7 + snoise(x * 2.1 + 3.7, y * 2.1 + 1.3) * 0.3;
+      }
 
-      var time2d = 0;
-      var POINTS = 64;
-      var BASE_R = 120;
+      // Build a deformed circular path
+      function deformedPath(cx, cy, radius, amt, seed) {
+        ctx.beginPath();
+        for (var i = 0; i <= POINTS; i++) {
+          var a = (i / POINTS) * Math.PI * 2;
+          var ca = Math.cos(a), sa = Math.sin(a);
+          var d = fbm(ca * 1.8 + time2d * 0.25 + seed, sa * 1.8 + time2d * 0.18) * amt;
+          var r = radius + d;
+          var px = cx + ca * r, py = cy + sa * r;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+      }
+
+      // Colors from the palette
+      var COLORS = [
+        [139, 92, 246],  // purple
+        [0, 122, 255],   // blue
+        [0, 217, 204],   // cyan
+        [52, 199, 89],   // green
+        [100, 80, 230]   // purple-blue
+      ];
 
       function draw2D() {
         if (!defaultScreen || !defaultScreen.classList.contains('active')) { requestAnimationFrame(draw2D); return; }
@@ -1595,58 +1621,72 @@
         smoothMic += (micLevel - smoothMic) * 0.08;
         var micScale = 1.0 + 0.7 * (1.0 - Math.exp(-smoothMic * 5.0));
         canvas.style.transform = 'translate(-50%, -50%) scale(' + micScale + ')';
+        var amt = 2 + smoothMic * 22;
 
         ctx.clearRect(0, 0, 320, 320);
-        var cx = 160, cy = 160;
-        var amt = 3 + smoothMic * 25;
 
-        // Draw multiple layered rings for depth
-        for (var layer = 3; layer >= 0; layer--) {
-          var layerR = BASE_R - layer * 8;
-          var alpha = layer === 0 ? 0.5 : 0.15 + layer * 0.05;
+        // 1) Outer purple glow — behind everything
+        var glowR = BASE_R + 30;
+        var glow = ctx.createRadialGradient(CX, CY, BASE_R * 0.7, CX, CY, glowR);
+        glow.addColorStop(0, 'rgba(139,92,246,0.0)');
+        glow.addColorStop(0.6, 'rgba(139,92,246,0.07)');
+        glow.addColorStop(1, 'rgba(139,92,246,0.0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath(); ctx.arc(CX, CY, glowR, 0, Math.PI * 2); ctx.fill();
 
-          // Color per layer — cycling blue/purple/cyan
-          var hueShift = time2d * 0.1 + layer * 0.8;
-          var r = Math.floor(80 + 59 * Math.sin(hueShift));
-          var g = Math.floor(60 + 50 * Math.sin(hueShift + 2.1));
-          var b = Math.floor(180 + 65 * Math.sin(hueShift + 4.2));
+        // 2) Glass body — filled deformed circle with radial gradient
+        //    Center is nearly transparent (glass), edges are colored (Fresnel)
+        ctx.save();
+        deformedPath(CX, CY, BASE_R, amt, 0);
+        ctx.clip();
 
-          ctx.beginPath();
-          for (var i = 0; i <= POINTS; i++) {
-            var angle = (i / POINTS) * Math.PI * 2;
-            var deform = snoise(Math.cos(angle) * 2 + time2d * 0.3, Math.sin(angle) * 2 + time2d * 0.2 + layer) * amt
-                       + snoise(Math.cos(angle) * 4 - time2d * 0.15, Math.sin(angle) * 4 + layer * 3) * amt * 0.4;
-            var pr = layerR + deform;
-            var px = cx + Math.cos(angle) * pr;
-            var py = cy + Math.sin(angle) * pr;
-            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-          }
-          ctx.closePath();
+        // Base fill — Fresnel: transparent center, purple-blue rim
+        var bodyGrad = ctx.createRadialGradient(CX - 15, CY - 20, 0, CX, CY, BASE_R + 10);
+        bodyGrad.addColorStop(0, 'rgba(200,200,255,0.03)');
+        bodyGrad.addColorStop(0.45, 'rgba(139,92,246,0.06)');
+        bodyGrad.addColorStop(0.7, 'rgba(139,92,246,0.22)');
+        bodyGrad.addColorStop(0.88, 'rgba(100,60,220,0.40)');
+        bodyGrad.addColorStop(1, 'rgba(80,40,200,0.55)');
+        ctx.fillStyle = bodyGrad;
+        ctx.fillRect(0, 0, 320, 320);
 
-          if (layer === 0) {
-            // Outermost ring — thicker stroke
-            ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-            ctx.lineWidth = 6;
-            ctx.stroke();
-            // Subtle fill for glow
-            var grad = ctx.createRadialGradient(cx, cy, layerR * 0.6, cx, cy, layerR + 10);
-            grad.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',0.02)');
-            grad.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0.12)');
-            ctx.fillStyle = grad;
-            ctx.fill();
-          } else {
-            ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
-            ctx.lineWidth = 2 + layer;
-            ctx.stroke();
-          }
+        // 3) Color blobs flowing across surface — simulates the noise-driven color flow
+        for (var ci = 0; ci < 4; ci++) {
+          var phase = time2d * 0.12 + ci * 1.57;
+          // Blob center drifts around inside the sphere
+          var bx = CX + Math.cos(phase * 0.7 + ci) * BASE_R * 0.4;
+          var by = CY + Math.sin(phase * 0.9 + ci * 2.3) * BASE_R * 0.35;
+          var blobR = BASE_R * (0.35 + 0.15 * Math.sin(phase * 0.5));
+          var c = COLORS[ci % COLORS.length];
+          var blobGrad = ctx.createRadialGradient(bx, by, 0, bx, by, blobR);
+          blobGrad.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.18)');
+          blobGrad.addColorStop(0.6, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.06)');
+          blobGrad.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.0)');
+          ctx.fillStyle = blobGrad;
+          ctx.fillRect(0, 0, 320, 320);
         }
 
-        // Outer glow
-        var glowGrad = ctx.createRadialGradient(cx, cy, BASE_R - 10, cx, cy, BASE_R + 20);
-        glowGrad.addColorStop(0, 'rgba(139,92,246,0.06)');
-        glowGrad.addColorStop(1, 'rgba(139,92,246,0)');
-        ctx.fillStyle = glowGrad;
-        ctx.beginPath(); ctx.arc(cx, cy, BASE_R + 20, 0, Math.PI * 2); ctx.fill();
+        // 4) Specular highlight — top-left bright spot
+        var specGrad = ctx.createRadialGradient(CX - 30, CY - 35, 0, CX - 30, CY - 35, BASE_R * 0.5);
+        specGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
+        specGrad.addColorStop(0.3, 'rgba(255,255,255,0.08)');
+        specGrad.addColorStop(1, 'rgba(255,255,255,0.0)');
+        ctx.fillStyle = specGrad;
+        ctx.fillRect(0, 0, 320, 320);
+
+        ctx.restore(); // unclip
+
+        // 5) Fresnel rim stroke — colored edge following deformed shape
+        deformedPath(CX, CY, BASE_R, amt, 0);
+        ctx.strokeStyle = 'rgba(139,92,246,0.35)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+
+        // 6) Inner deformed highlight ring — gives depth
+        deformedPath(CX, CY, BASE_R * 0.85, amt * 0.6, 5.0);
+        ctx.strokeStyle = 'rgba(100,140,255,0.10)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
 
         requestAnimationFrame(draw2D);
       }
