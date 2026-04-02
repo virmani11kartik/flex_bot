@@ -1884,7 +1884,9 @@ async function handleVoiceAssistantPrompt(transcript) {
   var sentencesSeen = 0;
 
   function processFullResponse() {
-    var lines = xhr.responseText.split('\n');
+    var text = xhr.responseText;
+    if (!text) { console.log('Stream: empty responseText, readyState=' + xhr.readyState); return; }
+    var lines = text.split('\n');
     var idx = 0;
     var newFullReply = '';
 
