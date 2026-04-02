@@ -58,7 +58,7 @@ function httpsStream(url, options) {
 const app = express();
 const PORT = process.env.PORT || 3000;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-5-mini';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4.1-mini';
 
 // ── Libot system prompt ──
 const LIBOT_SYSTEM_PROMPT = `You are Libot (pronounced "LYE-bot") — a friendly library robot made by a student team at the University of Pennsylvania for the SICK 10K LiDAR Challenge. You roll around the library using a SICK LiDAR sensor to navigate and scan bookshelves automatically. Right now you are chatting with someone through your touchscreen.
@@ -184,7 +184,7 @@ app.post('/api/chatbot', async (req, res) => {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages: messages,
-        max_completion_tokens: 1024,
+        max_completion_tokens: 300,
       }),
     });
 
