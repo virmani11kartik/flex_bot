@@ -1579,7 +1579,7 @@
       var ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      var CX = 160, CY = 160, BASE_R = 105;
+      var CX = 160, CY = 160, BASE_R = 80;
       var N = 6; // few control points → wide, smooth lobes
       var time2d = 0;
 
@@ -1626,11 +1626,11 @@
 
       function draw2D() {
         if (!defaultScreen || !defaultScreen.classList.contains('active')) { requestAnimationFrame(draw2D); return; }
-        time2d += 0.008; // slow organic drift
+        time2d += 0.04; // slow organic drift
         smoothMic += (micLevel - smoothMic) * 0.08;
         var micScale = 1.0 + 0.7 * (1.0 - Math.exp(-smoothMic * 5.0));
         canvas.style.transform = 'translate(-50%, -50%) scale(' + micScale + ')';
-        var amt = 4 + smoothMic * 18; // gentle baseline, mic adds more
+        var amt = 5 + smoothMic * 14; // gentle baseline, mic adds more
 
         ctx.clearRect(0, 0, 320, 320);
 

@@ -1,6 +1,59 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const https = require('https');
+
+// fetch polyfill for Node < 18 (Jetson runs Node 14)
+function httpsJson(url, options) {
+  var parsed = new URL(url);
+  var bodyBuf = options.body ? Buffer.from(options.body) : null;
+  var headers = Object.assign({}, options.headers || {});
+  if (bodyBuf) headers['Content-Length'] = bodyBuf.length;
+  return new Promise(function(resolve, reject) {
+    var req = https.request({
+      hostname: parsed.hostname,
+      path: parsed.pathname,
+      method: options.method || 'GET',
+      headers: headers,
+    }, function(res) {
+      var chunks = [];
+      res.on('data', function(c) { chunks.push(c); });
+      res.on('end', function() {
+        var buf = Buffer.concat(chunks);
+        resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, buf: buf,
+          json: function() { return JSON.parse(buf.toString()); } });
+      });
+    });
+    req.on('error', reject);
+    if (bodyBuf) req.write(bodyBuf);
+    req.end();
+  });
+}
+// For streaming responses (TTS)
+function httpsStream(url, options) {
+  var parsed = new URL(url);
+  var bodyBuf = options.body ? Buffer.from(options.body) : null;
+  var headers = Object.assign({}, options.headers || {});
+  if (bodyBuf) headers['Content-Length'] = bodyBuf.length;
+  return new Promise(function(resolve, reject) {
+    var req = https.request({
+      hostname: parsed.hostname,
+      path: parsed.pathname,
+      method: options.method || 'GET',
+      headers: headers,
+    }, function(res) {
+      resolve({ ok: res.statusCode >= 200 && res.statusCode < 300, status: res.statusCode, stream: res,
+        json: function() { return new Promise(function(r2) {
+          var c = []; res.on('data', function(d) { c.push(d); });
+          res.on('end', function() { r2(JSON.parse(Buffer.concat(c).toString())); });
+        }); }
+      });
+    });
+    req.on('error', reject);
+    if (bodyBuf) req.write(bodyBuf);
+    req.end();
+  });
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -55,24 +108,46 @@ app.post('/api/transcribe', express.raw({ type: '*/*', limit: '5mb' }), async (r
   }
 
   try {
-    const form = new FormData();
-    form.append('file', new Blob([req.body], { type: 'audio/webm' }), 'audio.webm');
-    form.append('model', 'whisper-1');
-    form.append('language', 'en');
+    // Build multipart body manually (works on Node 14+ without global FormData/fetch)
+    const boundary = '----formdata' + Date.now();
+    const parts = [
+      '--' + boundary + '\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n',
+      req.body,
+      '\r\n--' + boundary + '\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n',
+      '--' + boundary + '\r\nContent-Disposition: form-data; name="language"\r\n\r\nen\r\n',
+      '--' + boundary + '--\r\n',
+    ];
+    const body = Buffer.concat(parts.map(function(p) { return Buffer.isBuffer(p) ? p : Buffer.from(p); }));
 
-    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + OPENAI_API_KEY },
-      body: form,
+    const data = await new Promise(function(resolve, reject) {
+      const req2 = https.request({
+        hostname: 'api.openai.com',
+        path: '/v1/audio/transcriptions',
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + OPENAI_API_KEY,
+          'Content-Type': 'multipart/form-data; boundary=' + boundary,
+          'Content-Length': body.length,
+        },
+      }, function(res2) {
+        var chunks = [];
+        res2.on('data', function(c) { chunks.push(c); });
+        res2.on('end', function() {
+          try { resolve({ status: res2.statusCode, body: JSON.parse(Buffer.concat(chunks).toString()) }); }
+          catch (e) { reject(e); }
+        });
+      });
+      req2.on('error', reject);
+      req2.write(body);
+      req2.end();
     });
 
-    const data = await response.json();
-    if (!response.ok) {
-      console.error('Whisper API error:', data);
-      return res.status(response.status).json({ error: (data.error && data.error.message) || 'Transcription failed.' });
+    if (data.status !== 200) {
+      console.error('Whisper API error:', data.body);
+      return res.status(data.status).json({ error: (data.body.error && data.body.error.message) || 'Transcription failed.' });
     }
 
-    res.json({ text: data.text || '' });
+    res.json({ text: data.body.text || '' });
   } catch (error) {
     console.error('Transcribe error:', error);
     res.status(500).json({ error: 'Transcription failed.' });
@@ -100,20 +175,20 @@ app.post('/api/chatbot', async (req, res) => {
   messages.push({ role: 'user', content: message.trim() });
 
   try {
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await httpsJson('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+        'Authorization': 'Bearer ' + OPENAI_API_KEY,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model: OPENAI_MODEL,
-        messages,
+        messages: messages,
         max_completion_tokens: 1024,
       }),
     });
 
-    const data = await response.json();
+    const data = response.json();
     if (!response.ok) {
       console.error('OpenAI API error:', data);
       return res.status(response.status).json({
@@ -146,7 +221,7 @@ app.post('/api/tts', express.json(), async (req, res) => {
   if (!OPENAI_API_KEY) return res.status(503).json({ error: 'OPENAI_API_KEY is not configured.' });
 
   try {
-    const response = await fetch('https://api.openai.com/v1/audio/speech', {
+    const response = await httpsStream('https://api.openai.com/v1/audio/speech', {
       method: 'POST',
       headers: {
         'Authorization': 'Bearer ' + OPENAI_API_KEY,
@@ -161,21 +236,13 @@ app.post('/api/tts', express.json(), async (req, res) => {
     });
 
     if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
+      var err = await response.json();
       console.error('TTS API error:', err);
       return res.status(response.status).json({ error: (err.error && err.error.message) || 'TTS failed.' });
     }
 
     res.set('Content-Type', 'audio/mpeg');
-    const reader = response.body.getReader();
-    function pump() {
-      return reader.read().then(function(result) {
-        if (result.done) { res.end(); return; }
-        res.write(Buffer.from(result.value));
-        return pump();
-      });
-    }
-    await pump();
+    response.stream.pipe(res);
   } catch (error) {
     console.error('TTS error:', error);
     res.status(500).json({ error: 'TTS failed.' });
