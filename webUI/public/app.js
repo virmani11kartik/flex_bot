@@ -896,7 +896,7 @@ function initializeSelfCheckout() {
         patron: this.state.patron,
         totalScanned: this.state.scannedBooks.length,
         scannedBooks: this.state.scannedBooks.map((book) => ({ ...book })),
-        dueDate: this.state.scannedBooks[0]?.dueDate || null,
+        dueDate: (this.state.scannedBooks[0] && this.state.scannedBooks[0].dueDate) || null,
         isScanning: this.state.isScanning,
       };
     }
@@ -1202,14 +1202,126 @@ function formatBookStatus(status) {
 /**
  * Voice Assistant Functions
  */
+/**
+ * Whisper-based fallback for browsers without Web Speech API (Firefox).
+ * Records audio via MediaRecorder, sends to /api/transcribe (OpenAI Whisper).
+ * Mimics the SpeechRecognition interface so the rest of the code works unchanged.
+ */
+class WhisperRecognition {
+  constructor() {
+    this.onstart = null;
+    this.onresult = null;
+    this.onerror = null;
+    this.onend = null;
+    this._recording = false;
+    this._stream = null;
+    this._recorder = null;
+    this._silenceTimer = null;
+    this._analyser = null;
+    this._silenceStart = 0;
+    // How long silence before we auto-stop and transcribe (ms)
+    this._silenceThreshold = 1800;
+  }
+
+  async start() {
+    try {
+      this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const actx = new AudioContext();
+      const src = actx.createMediaStreamSource(this._stream);
+      this._analyser = actx.createAnalyser();
+      this._analyser.fftSize = 256;
+      src.connect(this._analyser);
+
+      this._recorder = new MediaRecorder(this._stream, { mimeType: 'audio/webm' });
+      const chunks = [];
+      this._recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+      this._recorder.onstop = async () => {
+        if (chunks.length === 0) { this._finish(); return; }
+        const blob = new Blob(chunks, { type: 'audio/webm' });
+        await this._transcribe(blob);
+        // If still in continuous mode, restart
+        if (this._recording) {
+          chunks.length = 0;
+          this._recorder.start();
+          this._watchSilence();
+        } else {
+          this._finish();
+        }
+      };
+
+      this._recording = true;
+      this._recorder.start();
+      this._watchSilence();
+      if (this.onstart) this.onstart();
+    } catch (err) {
+      if (this.onerror) this.onerror({ error: err.name === 'NotAllowedError' ? 'not-allowed' : 'audio-capture' });
+    }
+  }
+
+  stop() {
+    this._recording = false;
+    clearInterval(this._silenceTimer);
+    if (this._recorder && this._recorder.state === 'recording') {
+      this._recorder.stop();
+    } else {
+      this._finish();
+    }
+  }
+
+  _finish() {
+    if (this._stream) { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+    if (this.onend) this.onend();
+  }
+
+  _watchSilence() {
+    clearInterval(this._silenceTimer);
+    this._silenceStart = Date.now();
+    const buf = new Uint8Array(this._analyser.frequencyBinCount);
+    this._silenceTimer = setInterval(() => {
+      this._analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / buf.length);
+      if (rms > 0.02) { this._silenceStart = Date.now(); }
+      // After silence threshold, stop recording to trigger transcription
+      if (Date.now() - this._silenceStart > this._silenceThreshold) {
+        clearInterval(this._silenceTimer);
+        if (this._recorder && this._recorder.state === 'recording') {
+          this._recorder.stop(); // triggers onstop → transcribe
+        }
+      }
+    }, 100);
+  }
+
+  async _transcribe(blob) {
+    try {
+      const resp = await fetch('/api/transcribe', { method: 'POST', body: blob });
+      const data = await resp.json();
+      if (data.text && data.text.trim()) {
+        // Simulate a SpeechRecognition result event
+        if (this.onresult) {
+          this.onresult({
+            results: [{ 0: { transcript: data.text.trim() }, isFinal: true, length: 1 }],
+          });
+        }
+      }
+    } catch (err) {
+      console.warn('Whisper transcription failed:', err);
+      if (this.onerror) this.onerror({ error: 'network' });
+    }
+  }
+}
+
 function initializeVoiceAssistant() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  speechRecognitionSupported = Boolean(SpeechRecognition && window.speechSynthesis);
+  const NativeSpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  // Use native Web Speech API if available, otherwise fall back to Whisper
+  const useWhisper = !NativeSpeechRecognition;
+  speechRecognitionSupported = Boolean(NativeSpeechRecognition || typeof MediaRecorder !== 'undefined');
 
   if (!speechRecognitionSupported) {
     updateVoiceAssistantUI({
       status: 'Voice chat is not available in this browser.',
-      message: 'This proof of concept needs a browser with Web Speech support, such as Chrome or Edge.',
+      message: 'Neither Web Speech API nor MediaRecorder is available.',
       transcript: 'Voice recognition unavailable.',
       buttonLabel: 'Voice Unavailable',
       listening: false,
@@ -1218,11 +1330,16 @@ function initializeVoiceAssistant() {
     return;
   }
 
-  speechRecognition = new SpeechRecognition();
-  speechRecognition.lang = 'en-US';
-  speechRecognition.interimResults = true;
-  speechRecognition.continuous = true;
-  speechRecognition.maxAlternatives = 1;
+  if (useWhisper) {
+    console.log('Web Speech API not available — using Whisper fallback via /api/transcribe');
+    speechRecognition = new WhisperRecognition();
+  } else {
+    speechRecognition = new NativeSpeechRecognition();
+    speechRecognition.lang = 'en-US';
+    speechRecognition.interimResults = true;
+    speechRecognition.continuous = true;
+    speechRecognition.maxAlternatives = 1;
+  }
 
   speechRecognition.onstart = () => {
     manualVoiceStopRequested = false;
@@ -1240,7 +1357,7 @@ function initializeVoiceAssistant() {
 
   speechRecognition.onresult = (event) => {
     const transcript = Array.from(event.results)
-      .map((result) => result[0]?.transcript || '')
+      .map((result) => (result[0] && result[0].transcript) || '')
       .join(' ')
       .trim();
 
