@@ -66,6 +66,7 @@ let speechRecognition = null;
 let speechRecognitionSupported = false;
 let isVoiceListening = false;
 let isVoiceSpeaking = false;
+let isVoiceProcessing = false; // true while waiting for API response or TTS
 let pendingVoiceResponse = '';
 let manualVoiceStopRequested = false;
 let voiceSessionActive = false;
@@ -1353,10 +1354,12 @@ class WhisperRecognition {
       const resp = await fetch('/api/transcribe', { method: 'POST', body: blob });
       const data = await resp.json();
       if (data.text && data.text.trim()) {
+        // Normalize common Whisper mishearings of "Libot"
+        var text = data.text.trim().replace(/\b(lie[\s-]?bot|ly[\s-]?bot|li[\s-]?bot|lye[\s-]?bot|live[\s-]?bot|libott?)\b/gi, 'Libot');
         // Simulate a SpeechRecognition result event
         if (this.onresult) {
           this.onresult({
-            results: [{ 0: { transcript: data.text.trim() }, isFinal: true, length: 1 }],
+            results: [{ 0: { transcript: text }, isFinal: true, length: 1 }],
           });
         }
       }
@@ -1503,6 +1506,11 @@ function initializeVoiceAssistant() {
 
     if (latestTranscript) {
       pendingVoiceResponse = '';
+      // Don't launch a second response while one is in flight
+      if (isVoiceProcessing) {
+        console.log('onend: skipping — already processing a response');
+        return;
+      }
       handleVoiceAssistantPrompt(latestTranscript);
       scheduleVoiceRecognitionRestart();
       return;
@@ -1576,6 +1584,7 @@ function toggleVoiceAssistant() {
     if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
     if (window.speechSynthesis) window.speechSynthesis.cancel();
     isVoiceSpeaking = false;
+    isVoiceProcessing = false;
   }
 
   pendingVoiceResponse = '';
@@ -1613,6 +1622,7 @@ function speakRobotResponse(response, transcript) {
   function onDone() {
     _ttsAudio = null;
     isVoiceSpeaking = false;
+    isVoiceProcessing = false;
     // Resume mic after delay so speaker echo fades
     setTimeout(function() {
       if (speechRecognition && speechRecognition.resumeListening) {
@@ -1633,6 +1643,7 @@ function speakRobotResponse(response, transcript) {
   function onError() {
     _ttsAudio = null;
     isVoiceSpeaking = false;
+    isVoiceProcessing = false;
     if (speechRecognition && speechRecognition.resumeListening) {
       speechRecognition.resumeListening();
     }
@@ -1756,6 +1767,7 @@ function matchesAny(text, phrases) {
 }
 
 async function handleVoiceAssistantPrompt(transcript) {
+  isVoiceProcessing = true;
   updateVoiceAssistantUI({
     status: 'Thinking...',
     message: 'Let me think about that.',
