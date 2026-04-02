@@ -186,7 +186,7 @@ app.post('/api/chatbot', async (req, res) => {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages: messages,
-        max_completion_tokens: 2048,
+        max_completion_tokens: 1024,
       }),
     });
 
@@ -251,7 +251,7 @@ app.post('/api/chatbot-stream', express.json(), async function(req, res) {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages: messages,
-        max_completion_tokens: 2048,
+        max_completion_tokens: 1024,
         stream: true,
       }),
     });
