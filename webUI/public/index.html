@@ -1634,7 +1634,7 @@
         smoothMic += (micLevel - smoothMic) * 0.18;
         var micScale = 1.0 + 0.35 * (1.0 - Math.exp(-smoothMic * 5.0));
         canvas.style.transform = 'translate(-50%, -50%) scale(' + micScale + ')';
-        var amt = 7 + smoothMic * 120; // gentle organic idle, big liquid deform on speech
+        var amt = 7 + smoothMic * 70; // gentle organic idle, moderate liquid deform on speech
 
         ctx.clearRect(0, 0, 320, 320);
 
