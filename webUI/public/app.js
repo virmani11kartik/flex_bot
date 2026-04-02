@@ -72,6 +72,21 @@ let voiceSessionActive = false;
 let voiceRestartTimeout = null;
 let lastVoiceRecognitionError = '';
 let voiceConversationHistory = [];
+let voiceHistoryTimeout = null;
+const VOICE_HISTORY_TTL = 60000; // 1 minute of inactivity before clearing context
+
+function resetVoiceHistoryTimeout() {
+  if (voiceHistoryTimeout) clearTimeout(voiceHistoryTimeout);
+  voiceHistoryTimeout = setTimeout(function() {
+    voiceConversationHistory = [];
+    console.log('Voice context cleared after 1 min inactivity');
+  }, VOICE_HISTORY_TTL);
+}
+
+function clearVoiceHistory() {
+  if (voiceHistoryTimeout) { clearTimeout(voiceHistoryTimeout); voiceHistoryTimeout = null; }
+  voiceConversationHistory = [];
+}
  
 // Book Returns
 let bookReturnsManager = null;
@@ -1221,12 +1236,14 @@ class WhisperRecognition {
     this._silenceStart = 0;
     this._speechDetected = false;
     // How long silence after speech before we auto-stop and transcribe (ms)
-    this._silenceThreshold = 1200;
+    this._silenceThreshold = 1000;
     // RMS below this = silence (raise if picking up background noise)
     this._noiseGate = 0.06;
   }
 
   async start() {
+    // Already recording — don't double-start
+    if (this._recording) return;
     try {
       this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const actx = new AudioContext();
@@ -1241,17 +1258,20 @@ class WhisperRecognition {
       this._recorder.onstop = async () => {
         if (chunks.length === 0 || !this._speechDetected) {
           chunks.length = 0;
+          // If paused (TTS playing), just wait — resumeListening will restart
+          if (this._paused) return;
           if (this._recording) { this._recorder.start(); this._watchSilence(); }
           else { this._finish(); }
           return;
         }
         const blob = new Blob(chunks, { type: 'audio/webm' });
+        chunks.length = 0;
         await this._transcribe(blob);
         // Fire onend so the app processes the transcript (handleVoiceAssistantPrompt)
         if (this.onend) this.onend();
         // If still in continuous mode, restart for next utterance
+        // and re-fire onstart so isVoiceListening stays in sync
         if (this._recording) {
-          chunks.length = 0;
           this._recorder.start();
           this._watchSilence();
           if (this.onstart) this.onstart();
@@ -1274,6 +1294,27 @@ class WhisperRecognition {
       this._recorder.stop();
     } else {
       this._finish();
+    }
+  }
+
+  // Pause mic (while TTS is playing) — stops recorder to flush audio buffer
+  pauseListening() {
+    this._paused = true;
+    this._speechDetected = false;
+    clearInterval(this._silenceTimer);
+    // Stop recorder so TTS audio doesn't accumulate in chunks
+    if (this._recorder && this._recorder.state === 'recording') {
+      this._recorder.stop(); // onstop will see _speechDetected=false, _paused=true → discard & wait
+    }
+  }
+
+  resumeListening() {
+    this._paused = false;
+    if (this._recording && this._recorder && this._recorder.state !== 'recording') {
+      // Restart recorder fresh — no leftover TTS audio in buffer
+      this._recorder.start();
+      this._speechDetected = false;
+      this._watchSilence();
     }
   }
 
@@ -1441,6 +1482,9 @@ function initializeVoiceAssistant() {
   speechRecognition.onend = () => {
     const latestTranscript = pendingVoiceResponse;
     isVoiceListening = false;
+    console.log('onend fired — transcript:', latestTranscript ? latestTranscript.substring(0, 30) : '(none)',
+      'manual:', manualVoiceStopRequested, 'session:', voiceSessionActive,
+      'speaking:', isVoiceSpeaking, 'history:', voiceConversationHistory.length);
 
     if (manualVoiceStopRequested) {
       manualVoiceStopRequested = false;
@@ -1515,8 +1559,11 @@ function toggleVoiceAssistant() {
   }
 
   resetInactivityTimer();
+  console.log('toggleVoiceAssistant — listening:', isVoiceListening, 'speaking:', isVoiceSpeaking,
+    'session:', voiceSessionActive, 'recording:', speechRecognition._recording, 'history:', voiceConversationHistory.length);
 
   if (isVoiceListening) {
+    console.log('  → STOP branch');
     manualVoiceStopRequested = true;
     voiceSessionActive = false;
     clearVoiceRestartTimeout();
@@ -1525,76 +1572,102 @@ function toggleVoiceAssistant() {
   }
 
   if (isVoiceSpeaking) {
-    window.speechSynthesis.cancel();
+    console.log('  → cancel speaking');
+    if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
     isVoiceSpeaking = false;
   }
 
   pendingVoiceResponse = '';
   manualVoiceStopRequested = false;
   voiceSessionActive = true;
-  voiceConversationHistory = [];
+  // Don't clear history — preserve context across Speak presses
+  resetVoiceHistoryTimeout();
   clearVoiceRestartTimeout();
   speechRecognition.start();
 }
 
+// Active TTS audio so we can cancel it
+let _ttsAudio = null;
+
 function speakRobotResponse(response, transcript) {
-  if (!window.speechSynthesis) {
-    return;
+  // Cancel any in-progress TTS
+  if (_ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+  // Pause mic so TTS output doesn't trigger self-interruption
+  if (speechRecognition && speechRecognition.pauseListening) {
+    speechRecognition.pauseListening();
   }
 
-  const utterance = new SpeechSynthesisUtterance(response);
-  utterance.rate = 1;
-  utterance.pitch = 1.05;
-  utterance.volume = 1;
+  isVoiceSpeaking = true;
+  updateVoiceAssistantUI({
+    status: 'Speaking...',
+    message: response,
+    transcript: 'You said: "' + transcript + '"',
+    buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
+    listening: false,
+    speaking: true,
+  });
 
-  const voices = window.speechSynthesis.getVoices();
-  const preferredVoice = voices.find((voice) => /Samantha|Google US English|Microsoft Aria|Karen/i.test(voice.name));
-  if (preferredVoice) {
-    utterance.voice = preferredVoice;
-  }
-
-  utterance.onstart = () => {
-    isVoiceSpeaking = true;
-    updateVoiceAssistantUI({
-      status: 'Speaking...',
-      message: response,
-      transcript: `You said: "${transcript}"`,
-      buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
-      listening: false,
-      speaking: true,
-    });
-  };
-
-  utterance.onend = () => {
+  function onDone() {
+    _ttsAudio = null;
     isVoiceSpeaking = false;
+    // Resume mic after delay so speaker echo fades
+    setTimeout(function() {
+      if (speechRecognition && speechRecognition.resumeListening) {
+        speechRecognition.resumeListening();
+      }
+    }, 600);
     updateVoiceAssistantUI({
       status: voiceSessionActive ? 'Listening...' : 'Ready to talk',
       message: response,
-      transcript: `You said: "${transcript}"`,
+      transcript: 'You said: "' + transcript + '"',
       buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
       listening: false,
       speaking: false,
     });
+    if (voiceSessionActive) scheduleVoiceRecognitionRestart();
+  }
 
-    if (voiceSessionActive) {
-      scheduleVoiceRecognitionRestart();
-    }
-  };
-
-  utterance.onerror = () => {
+  function onError() {
+    _ttsAudio = null;
     isVoiceSpeaking = false;
+    if (speechRecognition && speechRecognition.resumeListening) {
+      speechRecognition.resumeListening();
+    }
     updateVoiceAssistantUI({
       status: 'Voice Error',
       message: response,
-      transcript: `You said: "${transcript}"`,
+      transcript: 'You said: "' + transcript + '"',
       buttonLabel: 'Speak Again',
       listening: false,
       speaking: false,
     });
-  };
+  }
 
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(utterance);
+  // OpenAI TTS via server — no browser fallback
+  fetch('/api/tts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: response }),
+  })
+    .then(function(res) {
+      if (!res.ok) throw new Error('TTS request failed');
+      return res.blob();
+    })
+    .then(function(blob) {
+      var url = URL.createObjectURL(blob);
+      var audio = new Audio(url);
+      _ttsAudio = audio;
+      audio.onended = function() { URL.revokeObjectURL(url); onDone(); };
+      audio.onerror = function() { URL.revokeObjectURL(url); onError(); };
+      audio.play();
+    })
+    .catch(function(err) {
+      console.warn('OpenAI TTS failed:', err);
+      onError();
+    });
 }
 
 function updateVoiceAssistantUI({
@@ -1697,6 +1770,7 @@ async function handleVoiceAssistantPrompt(transcript) {
   voiceConversationHistory.push({ role: 'user', content: transcript });
   voiceConversationHistory.push({ role: 'assistant', content: response });
   voiceConversationHistory = voiceConversationHistory.slice(-8);
+  resetVoiceHistoryTimeout();
 
   speakRobotResponse(response, transcript);
 }
@@ -1739,6 +1813,19 @@ function scheduleVoiceRecognitionRestart() {
     return;
   }
 
+  // WhisperRecognition manages its own restart loop — skip external restart
+  if (speechRecognition && speechRecognition._recording) {
+    updateVoiceAssistantUI({
+      status: 'Listening...',
+      message: 'I am listening. Ask me a library question.',
+      transcript: 'Debug: Whisper already recording, history=' + voiceConversationHistory.length + ' items',
+      buttonLabel: 'Stop',
+      listening: false,
+      speaking: false,
+    });
+    return;
+  }
+
   clearVoiceRestartTimeout();
   voiceRestartTimeout = setTimeout(() => {
     if (!voiceSessionActive || manualVoiceStopRequested || isVoiceListening || isVoiceSpeaking) {
@@ -1749,9 +1836,7 @@ function scheduleVoiceRecognitionRestart() {
       updateVoiceAssistantUI({
         status: 'Listening...',
         message: 'I am listening. Ask me a library question.',
-        transcript: lastVoiceRecognitionError
-          ? `Debug: restarting after "${lastVoiceRecognitionError}".`
-          : 'Debug: restarting microphone session.',
+        transcript: '',
         buttonLabel: 'Stop',
         listening: false,
         speaking: false,
@@ -1889,18 +1974,18 @@ function switchScreen(screenId) {
 }
  
 function showWelcome() {
-  stopVoiceAssistant();
+  stopVoiceAssistant(true);
   switchScreen('welcomeScreen');
 }
- 
+
 function showMenu() {
-  stopVoiceAssistant();
+  stopVoiceAssistant(true);
   switchScreen('menuScreen');
   resetInactivityTimer();
 }
- 
+
 function showThankYou() {
-  stopVoiceAssistant();
+  stopVoiceAssistant(true);
   switchScreen('thankYouScreen');
   
   // Clear timers since we're showing thank you
@@ -2309,11 +2394,11 @@ const VoiceVisualizer = (() => {
   };
 })();
 
-function stopVoiceAssistant() {
+function stopVoiceAssistant(clearHistory) {
   pendingVoiceResponse = '';
   manualVoiceStopRequested = false;
   voiceSessionActive = false;
-  voiceConversationHistory = [];
+  if (clearHistory) { clearVoiceHistory(); } else { resetVoiceHistoryTimeout(); }
   clearVoiceRestartTimeout();
 
   if (speechRecognition && isVoiceListening) {
@@ -2321,6 +2406,7 @@ function stopVoiceAssistant() {
     speechRecognition.stop();
   }
 
+  if (typeof _ttsAudio !== 'undefined' && _ttsAudio) { _ttsAudio.pause(); _ttsAudio = null; }
   if (window.speechSynthesis) {
     window.speechSynthesis.cancel();
   }
