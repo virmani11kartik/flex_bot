@@ -1355,7 +1355,7 @@ class WhisperRecognition {
       const data = await resp.json();
       if (data.text && data.text.trim()) {
         // Normalize common Whisper mishearings of "Libot"
-        var text = data.text.trim().replace(/\b(lie[\s-]?bot|ly[\s-]?bot|li[\s-]?bot|lye[\s-]?bot|live[\s-]?bot|libott?)\b/gi, 'Libot');
+        var text = data.text.trim().replace(/\b(lie[\s-]?bot|ly[\s-]?bot|li[\s-]?bot|lye[\s-]?bot|live[\s-]?bot|libott?|lye[\s-]?bo|lie[\s-]?bo|live[\s-]?bo|ly[\s-]?bo)\b/gi, 'Libot');
         // Simulate a SpeechRecognition result event
         if (this.onresult) {
           this.onresult({
