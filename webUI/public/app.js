@@ -72,6 +72,7 @@ let manualVoiceStopRequested = false;
 let voiceSessionActive = false;
 let voiceRestartTimeout = null;
 let lastVoiceRecognitionError = '';
+let _lastTtsEndTime = 0;
 let voiceConversationHistory = [];
 let voiceHistoryTimeout = null;
 const VOICE_HISTORY_TTL = 60000; // 1 minute of inactivity before clearing context
@@ -81,6 +82,11 @@ function resetVoiceHistoryTimeout() {
   voiceHistoryTimeout = setTimeout(function() {
     voiceConversationHistory = [];
     console.log('Voice context cleared after 1 min inactivity');
+    // Return to default screen if voice assistant is off
+    if (!voiceSessionActive && !isVoiceSpeaking && !isVoiceProcessing) {
+      stopVoiceAssistant(true);
+      returnToDefault();
+    }
   }, VOICE_HISTORY_TTL);
 }
 
@@ -1270,9 +1276,8 @@ class WhisperRecognition {
         await this._transcribe(blob);
         // Fire onend so the app processes the transcript (handleVoiceAssistantPrompt)
         if (this.onend) this.onend();
-        // If still in continuous mode, restart for next utterance
-        // and re-fire onstart so isVoiceListening stays in sync
-        if (this._recording) {
+        // If still in continuous mode and not paused (TTS playing), restart
+        if (this._recording && !this._paused) {
           this._recorder.start();
           this._watchSilence();
           if (this.onstart) this.onstart();
@@ -1310,13 +1315,20 @@ class WhisperRecognition {
   }
 
   resumeListening() {
-    this._paused = false;
-    if (this._recording && this._recorder && this._recorder.state !== 'recording') {
-      // Restart recorder fresh — no leftover TTS audio in buffer
-      this._recorder.start();
-      this._speechDetected = false;
-      this._watchSilence();
-    }
+    if (!this._recording) return;
+    var self = this;
+    // Keep _paused = true so any pending onstop from the old recorder discards & returns.
+    // Only clear _paused and restart once the echo window has passed.
+    setTimeout(function() {
+      self._paused = false;
+      if (!self._recording || !self._stream) return;
+      self._speechDetected = false;
+      if (self._recorder && self._recorder.state !== 'recording') {
+        self._recorder.start();
+        self._watchSilence();
+        if (self.onstart) self.onstart();
+      }
+    }, 500);
   }
 
   _finish() {
@@ -1355,7 +1367,7 @@ class WhisperRecognition {
       const data = await resp.json();
       if (data.text && data.text.trim()) {
         // Normalize common Whisper mishearings of "Libot"
-        var text = data.text.trim().replace(/\b(lie[\s-]?bot|ly[\s-]?bot|li[\s-]?bot|lye[\s-]?bot|live[\s-]?bot|libott?|lye[\s-]?bo|lie[\s-]?bo|live[\s-]?bo|ly[\s-]?bo)\b/gi, 'Libot');
+        var text = data.text.trim().replace(/\b(lie[\s-]?bot|ly[\s-]?bot|li[\s-]?bot|lye[\s-]?bot|live[\s-]?bot|libott?|lye[\s-]?bo|lie[\s-]?bo|live[\s-]?bo|ly[\s-]?bo|light[\s-]?bulb|light[\s-]?bot|light[\s-]?bott?|lai[\s-]?bot|la[iy][\s-]?bo[t]?|live[\s-]?up|libo|lybo|labou?t|leib[ao]|leyb[ao]|l[ae]i[\s-]?b[aou]t?)\b/gi, 'Libot');
         // Simulate a SpeechRecognition result event
         if (this.onresult) {
           this.onresult({
@@ -1509,6 +1521,11 @@ function initializeVoiceAssistant() {
       // Don't launch a second response while one is in flight
       if (isVoiceProcessing) {
         console.log('onend: skipping — already processing a response');
+        return;
+      }
+      // Reject echo: ignore transcripts arriving shortly after TTS finished
+      if (_lastTtsEndTime && (Date.now() - _lastTtsEndTime) < 2000) {
+        console.log('onend: skipping — likely TTS echo (within 2s of TTS end)');
         return;
       }
       handleVoiceAssistantPrompt(latestTranscript);
@@ -1771,50 +1788,162 @@ async function handleVoiceAssistantPrompt(transcript) {
   updateVoiceAssistantUI({
     status: 'Thinking...',
     message: 'Let me think about that.',
-    transcript: `You said: "${transcript}"`,
+    transcript: 'You said: "' + transcript + '"',
     buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
     listening: false,
     speaking: false,
   });
 
-  const response = await fetchRobotVoiceReply(transcript);
-
-  voiceConversationHistory.push({ role: 'user', content: transcript });
-  voiceConversationHistory.push({ role: 'assistant', content: response });
-  voiceConversationHistory = voiceConversationHistory.slice(-8);
-  resetVoiceHistoryTimeout();
-
-  speakRobotResponse(response, transcript);
-}
-
-async function fetchRobotVoiceReply(transcript) {
-  try {
-    const response = await fetch('/api/chatbot', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        message: transcript,
-        history: voiceConversationHistory,
-      }),
-    });
-
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.error || 'Chatbot request failed.');
-    }
-
-    if (data.reply && typeof data.reply === 'string') {
-      console.log('Robot answer: ' + data.reply);
-      return data.reply;
-    }
-
-    throw new Error('Chatbot response did not include reply text.');
-  } catch (error) {
-    console.error('Voice assistant API fallback:', error);
-    return generateRobotVoiceReply(transcript);
+  // Pause mic so TTS doesn't trigger self-interruption
+  if (speechRecognition && speechRecognition.pauseListening) {
+    speechRecognition.pauseListening();
   }
+
+  // Stream sentences from chatbot, prefetch TTS audio, play sequentially
+  var fullReply = '';
+  var audioQueue = []; // queue of promises that resolve to audio blob URLs
+  var isPlaying = false;
+  var streamDone = false;
+  var firstSentence = true;
+
+  function prefetchTTS(sentence) {
+    // Start fetching TTS immediately, return a promise for the blob URL
+    var p = fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: sentence }),
+    })
+      .then(function(r) {
+        if (!r.ok) throw new Error('TTS failed');
+        return r.blob();
+      })
+      .then(function(blob) {
+        return URL.createObjectURL(blob);
+      });
+    audioQueue.push(p);
+  }
+
+  function playNext() {
+    if (isPlaying || audioQueue.length === 0) {
+      if (streamDone && audioQueue.length === 0 && !isPlaying) {
+        onAllDone();
+      }
+      return;
+    }
+    isPlaying = true;
+    var nextPromise = audioQueue.shift();
+    nextPromise
+      .then(function(url) {
+        var audio = new Audio(url);
+        _ttsAudio = audio;
+        audio.onended = function() {
+          URL.revokeObjectURL(url);
+          isPlaying = false;
+          _ttsAudio = null;
+          playNext();
+        };
+        audio.onerror = function() {
+          URL.revokeObjectURL(url);
+          isPlaying = false;
+          _ttsAudio = null;
+          playNext();
+        };
+        audio.play();
+      })
+      .catch(function() {
+        isPlaying = false;
+        playNext();
+      });
+  }
+
+  function onAllDone() {
+    isVoiceSpeaking = false;
+    isVoiceProcessing = false;
+    _ttsAudio = null;
+    _lastTtsEndTime = Date.now();
+    setTimeout(function() {
+      if (speechRecognition && speechRecognition.resumeListening) {
+        speechRecognition.resumeListening();
+      }
+    }, 1200);
+    updateVoiceAssistantUI({
+      status: voiceSessionActive ? 'Listening...' : 'Ready to talk',
+      message: fullReply,
+      transcript: 'You said: "' + transcript + '"',
+      buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
+      listening: false,
+      speaking: false,
+    });
+    if (voiceSessionActive) scheduleVoiceRecognitionRestart();
+  }
+
+  // Use XHR for SSE over POST (works on old browsers)
+  var xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/chatbot-stream');
+  xhr.setRequestHeader('Content-Type', 'application/json');
+  var lastIdx = 0;
+
+  function processSSEChunk(text) {
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line.startsWith('data: ')) continue;
+      var payload = line.slice(6);
+      if (payload === '[DONE]') {
+        streamDone = true;
+        voiceConversationHistory.push({ role: 'user', content: transcript });
+        voiceConversationHistory.push({ role: 'assistant', content: fullReply });
+        voiceConversationHistory = voiceConversationHistory.slice(-8);
+        resetVoiceHistoryTimeout();
+        console.log('Robot answer: ' + fullReply);
+        if (!isPlaying && audioQueue.length === 0) onAllDone();
+        continue;
+      }
+      try {
+        var parsed = JSON.parse(payload);
+        if (parsed.error) { console.error('Stream error:', parsed.error); continue; }
+        if (parsed.sentence) {
+          fullReply += (fullReply ? ' ' : '') + parsed.sentence;
+          prefetchTTS(parsed.sentence);
+          if (firstSentence) { firstSentence = false; isVoiceSpeaking = true; }
+          updateVoiceAssistantUI({
+            status: 'Speaking...',
+            message: fullReply,
+            transcript: 'You said: "' + transcript + '"',
+            buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
+            listening: false,
+            speaking: true,
+          });
+          playNext();
+        }
+      } catch(e) {}
+    }
+  }
+
+  xhr.onprogress = function() {
+    var newData = xhr.responseText.substring(lastIdx);
+    lastIdx = xhr.responseText.length;
+    processSSEChunk(newData);
+  };
+
+  xhr.onload = function() {
+    if (streamDone) return; // onprogress already handled everything
+    // Process the entire response — onprogress may not have fired at all
+    processSSEChunk(xhr.responseText);
+  };
+
+  xhr.onerror = function() {
+    console.error('Chatbot stream failed');
+    isVoiceProcessing = false;
+    if (speechRecognition && speechRecognition.resumeListening) {
+      speechRecognition.resumeListening();
+    }
+  };
+
+  xhr.send(JSON.stringify({
+    message: transcript,
+    history: voiceConversationHistory,
+  }));
 }
 
 function isVoiceAssistantActive() {
@@ -1828,14 +1957,6 @@ function scheduleVoiceRecognitionRestart() {
 
   // WhisperRecognition manages its own restart loop — skip external restart
   if (speechRecognition && speechRecognition._recording) {
-    updateVoiceAssistantUI({
-      status: 'Listening...',
-      message: 'I am listening. Ask me a library question.',
-      transcript: 'Debug: Whisper already recording, history=' + voiceConversationHistory.length + ' items',
-      buttonLabel: 'Stop',
-      listening: false,
-      speaking: false,
-    });
     return;
   }
 
