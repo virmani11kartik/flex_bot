@@ -1328,7 +1328,7 @@ class WhisperRecognition {
         self._watchSilence();
         if (self.onstart) self.onstart();
       }
-    }, 500);
+    }, 200);
   }
 
   _finish() {
@@ -1865,7 +1865,7 @@ async function handleVoiceAssistantPrompt(transcript) {
       if (speechRecognition && speechRecognition.resumeListening) {
         speechRecognition.resumeListening();
       }
-    }, 1200);
+    }, 600);
     updateVoiceAssistantUI({
       status: voiceSessionActive ? 'Listening...' : 'Ready to talk',
       message: fullReply,
