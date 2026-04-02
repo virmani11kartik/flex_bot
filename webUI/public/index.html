@@ -1638,59 +1638,78 @@
 
         ctx.clearRect(0, 0, 320, 320);
 
-        // 1) Outer purple glow
-        var glowR = BASE_R + 35;
-        var glow = ctx.createRadialGradient(CX, CY, BASE_R * 0.6, CX, CY, glowR);
-        glow.addColorStop(0, 'rgba(139,92,246,0.0)');
-        glow.addColorStop(0.5, 'rgba(139,92,246,0.06)');
-        glow.addColorStop(1, 'rgba(139,92,246,0.0)');
+        // 1) Outer ambient glow — large soft halo behind the orb
+        var glowR = BASE_R + 50;
+        var glow = ctx.createRadialGradient(CX, CY, BASE_R * 0.3, CX, CY, glowR);
+        glow.addColorStop(0, 'rgba(139,92,246,0.10)');
+        glow.addColorStop(0.4, 'rgba(120,70,240,0.06)');
+        glow.addColorStop(0.7, 'rgba(100,50,220,0.03)');
+        glow.addColorStop(1, 'rgba(80,40,200,0.0)');
         ctx.fillStyle = glow;
         ctx.beginPath(); ctx.arc(CX, CY, glowR, 0, Math.PI * 2); ctx.fill();
 
-        // 2) Glass body — smooth blob with Fresnel gradient
+        // 2) Edge glow — draw the blob shape blurred behind as a soft colored rim light
+        ctx.save();
+        ctx.shadowColor = 'rgba(139,92,246,0.5)';
+        ctx.shadowBlur = 20;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        blobPath(CX, CY, BASE_R, amt, 0);
+        ctx.fillStyle = 'rgba(139,92,246,0.0)';
+        ctx.strokeStyle = 'rgba(160,120,255,0.35)';
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.restore();
+
+        // 3) Glass body — clip to blob, paint layers inside
         ctx.save();
         blobPath(CX, CY, BASE_R, amt, 0);
         ctx.clip();
 
-        // Fresnel fill: transparent center, colored rim
-        var bodyGrad = ctx.createRadialGradient(CX - 12, CY - 16, 0, CX, CY, BASE_R + 10);
-        bodyGrad.addColorStop(0, 'rgba(220,220,255,0.04)');
-        bodyGrad.addColorStop(0.4, 'rgba(139,92,246,0.07)');
-        bodyGrad.addColorStop(0.7, 'rgba(120,80,240,0.22)');
-        bodyGrad.addColorStop(0.88, 'rgba(100,60,220,0.38)');
-        bodyGrad.addColorStop(1, 'rgba(80,40,200,0.52)');
+        // Base fill: very subtle tinted glass
+        var bodyGrad = ctx.createRadialGradient(CX - 10, CY - 14, 0, CX, CY, BASE_R + 12);
+        bodyGrad.addColorStop(0, 'rgba(230,225,255,0.06)');
+        bodyGrad.addColorStop(0.35, 'rgba(160,120,240,0.08)');
+        bodyGrad.addColorStop(0.65, 'rgba(130,80,230,0.18)');
+        bodyGrad.addColorStop(0.85, 'rgba(110,60,220,0.30)');
+        bodyGrad.addColorStop(1, 'rgba(90,40,200,0.42)');
         ctx.fillStyle = bodyGrad;
         ctx.fillRect(0, 0, 320, 320);
 
-        // 3) Color blobs drifting inside — slow liquid flow
+        // 4) Color nebula — large, very soft blobs that overlap and blend like smoke
+        ctx.globalCompositeOperation = 'screen';
         for (var ci = 0; ci < 4; ci++) {
-          var phase = time2d * 1.5 + ci * 1.57;
-          var bx = CX + Math.cos(phase * 0.3 + ci * 2.0) * BASE_R * 0.35;
-          var by = CY + Math.sin(phase * 0.4 + ci * 1.3) * BASE_R * 0.3;
-          var blobR = BASE_R * (0.4 + 0.1 * Math.sin(phase * 0.2));
+          var phase = time2d * 0.8 + ci * 1.57;
+          var orbitR = BASE_R * 0.32;
+          var bx = CX + Math.cos(phase * 0.25 + ci * 2.1) * orbitR;
+          var by = CY + Math.sin(phase * 0.35 + ci * 1.4) * orbitR * 0.9;
+          var blobR = BASE_R * (0.65 + 0.15 * Math.sin(phase * 0.18 + ci));
           var c = COLORS[ci];
           var blobGrad = ctx.createRadialGradient(bx, by, 0, bx, by, blobR);
-          blobGrad.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.20)');
-          blobGrad.addColorStop(0.5, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.07)');
+          blobGrad.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.13)');
+          blobGrad.addColorStop(0.3, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.08)');
+          blobGrad.addColorStop(0.6, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.03)');
           blobGrad.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0.0)');
           ctx.fillStyle = blobGrad;
           ctx.fillRect(0, 0, 320, 320);
         }
+        ctx.globalCompositeOperation = 'source-over';
 
-        // 4) Specular highlight
-        var specGrad = ctx.createRadialGradient(CX - 28, CY - 32, 0, CX - 28, CY - 32, BASE_R * 0.45);
-        specGrad.addColorStop(0, 'rgba(255,255,255,0.22)');
-        specGrad.addColorStop(0.3, 'rgba(255,255,255,0.06)');
+        // 5) Specular highlight — glassy reflection top-left
+        var specGrad = ctx.createRadialGradient(CX - 26, CY - 30, 0, CX - 26, CY - 30, BASE_R * 0.5);
+        specGrad.addColorStop(0, 'rgba(255,255,255,0.25)');
+        specGrad.addColorStop(0.2, 'rgba(255,255,255,0.10)');
+        specGrad.addColorStop(0.5, 'rgba(255,255,255,0.02)');
         specGrad.addColorStop(1, 'rgba(255,255,255,0.0)');
         ctx.fillStyle = specGrad;
         ctx.fillRect(0, 0, 320, 320);
 
         ctx.restore();
 
-        // 5) Soft rim stroke following the blob shape
+        // 6) Thin bright rim stroke on top of everything
         blobPath(CX, CY, BASE_R, amt, 0);
-        ctx.strokeStyle = 'rgba(139,92,246,0.28)';
-        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = 'rgba(180,150,255,0.22)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
         requestAnimationFrame(draw2D);
