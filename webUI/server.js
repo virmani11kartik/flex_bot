@@ -31,7 +31,6 @@ app.post('/api/transcribe', express.raw({ type: '*/*', limit: '5mb' }), async (r
   }
 
   try {
-    const { FormData, Blob } = await import('buffer');
     const form = new FormData();
     form.append('file', new Blob([req.body], { type: 'audio/webm' }), 'audio.webm');
     form.append('model', 'whisper-1');
