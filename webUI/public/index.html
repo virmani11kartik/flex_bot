@@ -1648,31 +1648,32 @@
         ctx.fillStyle = glow;
         ctx.beginPath(); ctx.arc(CX, CY, glowR, 0, Math.PI * 2); ctx.fill();
 
-        // 2) Edge glow — draw the blob shape blurred behind as a soft colored rim light
-        ctx.save();
-        ctx.shadowColor = 'rgba(139,92,246,0.5)';
-        ctx.shadowBlur = 20;
-        ctx.shadowOffsetX = 0;
-        ctx.shadowOffsetY = 0;
-        blobPath(CX, CY, BASE_R, amt, 0);
-        ctx.fillStyle = 'rgba(139,92,246,0.0)';
-        ctx.strokeStyle = 'rgba(160,120,255,0.35)';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        ctx.restore();
+        // 2) Edge glow — multiple layered strokes faking a soft blur
+        var glowLayers = [
+          { width: 16, alpha: 0.04 },
+          { width: 10, alpha: 0.07 },
+          { width: 6,  alpha: 0.12 },
+        ];
+        for (var gi = 0; gi < glowLayers.length; gi++) {
+          blobPath(CX, CY, BASE_R, amt, 0);
+          ctx.strokeStyle = 'rgba(160,120,255,' + glowLayers[gi].alpha + ')';
+          ctx.lineWidth = glowLayers[gi].width;
+          ctx.stroke();
+        }
 
         // 3) Glass body — clip to blob, paint layers inside
         ctx.save();
         blobPath(CX, CY, BASE_R, amt, 0);
         ctx.clip();
 
-        // Base fill: very subtle tinted glass
-        var bodyGrad = ctx.createRadialGradient(CX - 10, CY - 14, 0, CX, CY, BASE_R + 12);
-        bodyGrad.addColorStop(0, 'rgba(230,225,255,0.06)');
-        bodyGrad.addColorStop(0.35, 'rgba(160,120,240,0.08)');
-        bodyGrad.addColorStop(0.65, 'rgba(130,80,230,0.18)');
-        bodyGrad.addColorStop(0.85, 'rgba(110,60,220,0.30)');
-        bodyGrad.addColorStop(1, 'rgba(90,40,200,0.42)');
+        // Fresnel ring: transparent center, color only at the rim
+        var bodyGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, BASE_R + 12);
+        bodyGrad.addColorStop(0, 'rgba(220,215,255,0.0)');
+        bodyGrad.addColorStop(0.45, 'rgba(160,120,240,0.02)');
+        bodyGrad.addColorStop(0.65, 'rgba(139,92,246,0.08)');
+        bodyGrad.addColorStop(0.8, 'rgba(120,70,230,0.22)');
+        bodyGrad.addColorStop(0.92, 'rgba(100,55,220,0.38)');
+        bodyGrad.addColorStop(1, 'rgba(80,40,200,0.50)');
         ctx.fillStyle = bodyGrad;
         ctx.fillRect(0, 0, 320, 320);
 
@@ -1706,10 +1707,10 @@
 
         ctx.restore();
 
-        // 6) Thin bright rim stroke on top of everything
+        // 6) Clear bright rim ring on top
         blobPath(CX, CY, BASE_R, amt, 0);
-        ctx.strokeStyle = 'rgba(180,150,255,0.22)';
-        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = 'rgba(180,150,255,0.45)';
+        ctx.lineWidth = 1.8;
         ctx.stroke();
 
         requestAnimationFrame(draw2D);
