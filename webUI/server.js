@@ -235,7 +235,7 @@ app.post('/api/chatbot-stream', express.json(), async function(req, res) {
   messages.push({ role: 'user', content: message.trim() });
 
   // SSE headers
-  res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+  res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
