@@ -7,6 +7,9 @@
 // CONFIGURATION - Adjust these values to customize behavior
 // ============================================================================
  
+// Set to false to disable camera + face detection (saves significant CPU on Jetson)
+const ENABLE_FACE_DETECTION = false;
+
 // Inactivity Timeouts (in milliseconds)
 const INACTIVITY_TIMEOUT = 30000; // 30 seconds - Return to home after no clicks/touches
 const NO_FACE_TIMEOUT = 15000;    // 15 seconds - Return to home when face not detected
@@ -111,11 +114,13 @@ async function init() {
   overlayCanvas = elements.overlay;
   overlayContext = overlayCanvas.getContext('2d');
   
-  // Initialize camera
-  await setupCamera();
-  
-  // Initialize face detection
-  await initializeFaceDetection();
+  // Initialize camera + face detection (skip if disabled for performance)
+  if (ENABLE_FACE_DETECTION) {
+    await setupCamera();
+    await initializeFaceDetection();
+  } else {
+    console.log('Face detection disabled (ENABLE_FACE_DETECTION = false)');
+  }
   
   // Initialize book returns manager
   initializeBookReturns();

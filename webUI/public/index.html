@@ -10,9 +10,9 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 
-    <!-- TensorflowJS and Blazeface -->
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script>
+    <!-- TensorflowJS and Blazeface — uncomment when ENABLE_FACE_DETECTION = true in app.js -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.11.0"></script> -->
+    <!-- <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/blazeface@0.0.7"></script> -->
 
     <style>
         /* ================================================================
@@ -114,17 +114,7 @@
             animation: drift3 52s ease-in-out infinite;
         }
 
-        .bg-blob-4 {
-            width: 350px; height: 350px;
-            top: 10%; right: 20%;
-            animation: drift4 44s ease-in-out infinite;
-        }
-
-        .bg-blob-5 {
-            width: 280px; height: 280px;
-            bottom: 20%; left: 5%;
-            animation: drift5 68s ease-in-out infinite;
-        }
+        /* blob-4/blob-5 removed for performance */
 
         @keyframes drift1 {
             0%, 100% { transform: translate(0, 0) rotate(0deg); }
@@ -144,16 +134,7 @@
             50%      { transform: translate(-60px, 20px) rotate(-7deg); }
             75%      { transform: translate(20px, 40px) rotate(3deg); }
         }
-        @keyframes drift4 {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            33%      { transform: translate(-40px, 50px) rotate(-10deg); }
-            66%      { transform: translate(60px, -30px) rotate(6deg); }
-        }
-        @keyframes drift5 {
-            0%, 100% { transform: translate(0, 0) rotate(0deg); }
-            33%      { transform: translate(50px, -40px) rotate(8deg); }
-            66%      { transform: translate(-30px, 60px) rotate(-5deg); }
-        }
+        /* drift4/drift5 removed — blobs 4 & 5 removed for performance */
 
         /* ================================================================
            LAYOUT
@@ -201,9 +182,8 @@
             left: 14px;
             z-index: 250;
             font-family: var(--mono);
-            background: rgba(255,255,255,0.72);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            background: rgba(255,255,255,0.94);
+            /* backdrop-filter removed for performance */
             color: var(--text-muted);
             border: none;
             border-radius: var(--radius-pill);
@@ -329,9 +309,8 @@
             width: min(600px, calc(100vw - 48px));
             padding: 22px 28px;
             border-radius: var(--radius-xl);
-            background: rgba(255,255,255,0.72);
-            backdrop-filter: blur(20px) saturate(180%);
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            background: rgba(255,255,255,0.94);
+            /* backdrop-filter removed for performance */
             box-shadow: var(--shadow);
             text-align: center;
             animation: revealUp 0.7s var(--ease) 0.36s both;
@@ -439,8 +418,7 @@
             background: linear-gradient(135deg, rgba(0,122,255,0.65), rgba(139,92,246,0.58), rgba(0,122,255,0.52), rgba(139,92,246,0.60));
             background-size: 300% 300%;
             animation: btnColorDrift 8s ease-in-out infinite;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            /* backdrop-filter removed for performance */
             box-shadow: none;
             padding: 18px 52px;
             font-size: 1.08rem;
@@ -455,8 +433,7 @@
             background-size: 300% 300%;
             animation: btnColorDrift 10s ease-in-out infinite;
             animation-delay: -3s;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            /* backdrop-filter removed for performance */
             box-shadow: none;
             padding: 18px 52px;
             font-size: 1.08rem;
@@ -472,7 +449,7 @@
             display: inline-block;
             border-radius: var(--radius-pill);
             background: transparent;
-            animation: revealUp 0.6s var(--ease) 0.3s both, floatBtn 6s ease-in-out infinite;
+            /* floatBtn removed for performance */
             isolation: isolate;
         }
 
@@ -482,7 +459,7 @@
             inset: -10px -8px -8px -10px;
             border-radius: var(--radius-pill);
             background: radial-gradient(ellipse at 30% 38%, rgba(0,122,255,0.36), rgba(139,92,246,0.24) 55%, transparent 90%);
-            filter: blur(10px);
+            /* filter: blur removed for performance */
             z-index: -1;
             opacity: 0.75;
         }
@@ -514,9 +491,8 @@
 
         .btn-back, .btn-secondary {
             font-family: var(--font);
-            background: rgba(255,255,255,0.72);
-            backdrop-filter: blur(16px) saturate(180%);
-            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background: rgba(255,255,255,0.94);
+            /* backdrop-filter removed for performance */
             border: 1px solid rgba(255,255,255,0.5);
             color: var(--text-sub);
             padding: 14px 36px;
@@ -636,24 +612,18 @@
         }
 
         .menu-item {
-            background: rgba(255,255,255,0.78);
-            backdrop-filter: blur(16px) saturate(180%);
-            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background: rgba(255,255,255,0.92);
             border: 1px solid rgba(255,255,255,0.5);
             border-radius: var(--radius-lg);
             padding: 28px 20px;
             cursor: pointer;
             box-shadow: var(--shadow);
-            transition: transform 0.35s var(--spring), box-shadow 0.3s var(--ease);
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
             position: relative;
             overflow: hidden;
-            animation: revealUp 0.45s var(--ease) both;
         }
 
-        .menu-item:nth-child(1) { animation-delay: 0.04s; }
-        .menu-item:nth-child(2) { animation-delay: 0.08s; }
-        .menu-item:nth-child(3) { animation-delay: 0.12s; }
-        .menu-item:nth-child(4) { animation-delay: 0.16s; }
+        /* Entry animation delays removed for performance */
 
         .menu-item:hover {
             transform: translateY(-4px) scale(1.01);
@@ -665,29 +635,7 @@
             box-shadow: var(--shadow);
         }
 
-        /* Subtle shimmer sweep on menu cards */
-        .menu-item::after {
-            content: '';
-            position: absolute;
-            inset: 0;
-            border-radius: inherit;
-            background: linear-gradient(
-                105deg,
-                transparent 40%,
-                rgba(255,255,255,0.6) 50%,
-                transparent 60%
-            );
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-        .menu-item:hover::after {
-            opacity: 1;
-            animation: shimmerSweep 0.8s ease-out;
-        }
-        @keyframes shimmerSweep {
-            from { transform: translateX(-100%); }
-            to   { transform: translateX(100%); }
-        }
+        /* Shimmer removed for performance */
 
         /* Colored icon badges */
         .menu-item-icon {
@@ -721,9 +669,8 @@
         }
 
         .menu-other {
-            background: rgba(255,255,255,0.65);
-            backdrop-filter: blur(16px) saturate(180%);
-            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            background: rgba(255,255,255,0.92);
+            /* backdrop-filter removed for performance */
             border: 1px solid rgba(255,255,255,0.4);
             padding: 14px;
             border-radius: var(--radius-md);
@@ -986,8 +933,7 @@
 
         .patron-form-card, .checkout-panel {
             background: rgba(255,255,255,0.78);
-            backdrop-filter: blur(16px) saturate(180%);
-            -webkit-backdrop-filter: blur(16px) saturate(180%);
+            /* backdrop-filter removed for performance */
             border: 1px solid rgba(255,255,255,0.5);
             border-radius: var(--radius-xl);
             padding: 26px;
@@ -1267,64 +1213,21 @@
 </head>
 
 <body>
-    <!-- Animated organic background blobs -->
+    <!-- Background blobs — static shapes, CSS drift only (no SVG path morphing) -->
     <div class="bg-pattern">
         <div class="bg-blob bg-blob-1">
             <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="rgba(0,122,255,0.02)" transform="translate(100,100)">
-                    <animate attributeName="d" dur="24s" repeatCount="indefinite" values="
-                        M44,-59.1C56.9,-53.3,67.2,-41.1,73.3,-26.8C79.4,-12.5,81.3,3.8,76.6,18.1C71.9,32.4,60.5,44.6,47,53.6C33.5,62.6,17.8,68.4,0.7,67.5C-16.3,66.5,-32.7,58.9,-46.4,48C-60.1,37.2,-71.2,23.2,-74.4,7.3C-77.6,-8.6,-72.8,-26.3,-62.3,-38.5C-51.8,-50.6,-35.6,-57.2,-20.1,-62C-4.6,-66.7,10.3,-69.5,24.3,-66.8C38.3,-64.2,51.4,-56.1,44,-59.1Z;
-                        M39.7,-51.7C53.3,-47.6,67.1,-38.3,72.7,-25.3C78.3,-12.3,75.7,4.5,69.3,18.8C62.9,33.1,52.7,44.9,40.3,54.2C27.9,63.5,13.9,70.3,-1.1,71.7C-16.2,73.2,-32.3,69.3,-44.2,59.6C-56.1,49.9,-63.6,34.3,-68.2,17.7C-72.8,1.1,-74.3,-16.5,-67.5,-29.8C-60.7,-43.1,-45.5,-52.1,-30.9,-55.8C-16.4,-59.5,-2.4,-57.8,10.5,-53.6C23.3,-49.3,46,-48.6,39.7,-51.7Z;
-                        M47.5,-62.9C60.9,-55,70.5,-40.2,74.8,-24.3C79.1,-8.4,78.1,8.6,71.7,22.7C65.3,36.7,53.4,47.8,39.8,56.3C26.3,64.8,11,70.7,-3.8,75.4C-18.6,80.1,-33.1,83.5,-44.4,76C-55.7,68.4,-63.8,49.8,-68.8,31.6C-73.8,13.3,-75.7,-4.6,-70.5,-19.6C-65.3,-34.5,-53.1,-46.5,-39.8,-54.4C-26.4,-62.2,-11.9,-65.9,2.5,-69.2C16.9,-72.5,34,-70.7,47.5,-62.9Z;
-                        M44,-59.1C56.9,-53.3,67.2,-41.1,73.3,-26.8C79.4,-12.5,81.3,3.8,76.6,18.1C71.9,32.4,60.5,44.6,47,53.6C33.5,62.6,17.8,68.4,0.7,67.5C-16.3,66.5,-32.7,58.9,-46.4,48C-60.1,37.2,-71.2,23.2,-74.4,7.3C-77.6,-8.6,-72.8,-26.3,-62.3,-38.5C-51.8,-50.6,-35.6,-57.2,-20.1,-62C-4.6,-66.7,10.3,-69.5,24.3,-66.8C38.3,-64.2,51.4,-56.1,44,-59.1Z
-                    " calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-                </path>
+                <path fill="rgba(0,122,255,0.02)" transform="translate(100,100)" d="M44,-59.1C56.9,-53.3,67.2,-41.1,73.3,-26.8C79.4,-12.5,81.3,3.8,76.6,18.1C71.9,32.4,60.5,44.6,47,53.6C33.5,62.6,17.8,68.4,0.7,67.5C-16.3,66.5,-32.7,58.9,-46.4,48C-60.1,37.2,-71.2,23.2,-74.4,7.3C-77.6,-8.6,-72.8,-26.3,-62.3,-38.5C-51.8,-50.6,-35.6,-57.2,-20.1,-62C-4.6,-66.7,10.3,-69.5,24.3,-66.8C38.3,-64.2,51.4,-56.1,44,-59.1Z"/>
             </svg>
         </div>
         <div class="bg-blob bg-blob-2">
             <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="rgba(139,92,246,0.016)" transform="translate(100,100)">
-                    <animate attributeName="d" dur="28s" repeatCount="indefinite" values="
-                        M38.5,-48.2C52.6,-43.8,68.4,-36.4,74.1,-24.2C79.8,-12,75.5,5.1,68,19.1C60.5,33.2,49.8,44.2,37.2,52.6C24.6,61,-1.9,66.8,-17.6,62.3C-33.3,57.8,-38.2,43.1,-48.2,29.7C-58.3,16.3,-73.5,4.2,-76.2,-10.5C-78.9,-25.1,-69.1,-42.2,-55,-51.8C-41,-61.4,-22.6,-63.5,-5.6,-57.1C11.5,-50.7,24.5,-52.5,38.5,-48.2Z;
-                        M43.2,-55.9C55.8,-50.6,65.7,-38.1,71.5,-23.5C77.3,-8.9,79.1,7.8,73.4,21.7C67.7,35.5,54.5,46.5,40.4,54.8C26.3,63.1,11.3,68.6,-3.9,73.5C-19.1,78.3,-34.4,82.6,-45.6,75.1C-56.8,67.7,-63.8,48.5,-67.3,30.3C-70.7,12.1,-70.5,-5.1,-65.1,-19.5C-59.7,-33.8,-49.1,-45.3,-36.8,-50.8C-24.4,-56.3,-10.4,-55.8,2.7,-59.3C15.7,-62.8,30.6,-61.3,43.2,-55.9Z;
-                        M35.4,-44.8C47.6,-40.3,60.3,-31.8,66.3,-19.9C72.4,-8,71.8,7.3,66.3,20.5C60.9,33.7,50.6,44.8,38.2,52.8C25.9,60.8,11.6,65.7,-2.5,68.8C-16.6,71.8,-30.5,73,-42.4,66.2C-54.2,59.4,-64,44.5,-69.4,28.4C-74.7,12.3,-75.5,-5.1,-70,-19.3C-64.5,-33.4,-52.7,-44.3,-39.9,-48.5C-27.1,-52.7,-13.2,-50.2,0.2,-50.5C13.7,-50.7,23.1,-49.2,35.4,-44.8Z;
-                        M38.5,-48.2C52.6,-43.8,68.4,-36.4,74.1,-24.2C79.8,-12,75.5,5.1,68,19.1C60.5,33.2,49.8,44.2,37.2,52.6C24.6,61,-1.9,66.8,-17.6,62.3C-33.3,57.8,-38.2,43.1,-48.2,29.7C-58.3,16.3,-73.5,4.2,-76.2,-10.5C-78.9,-25.1,-69.1,-42.2,-55,-51.8C-41,-61.4,-22.6,-63.5,-5.6,-57.1C11.5,-50.7,24.5,-52.5,38.5,-48.2Z
-                    " calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-                </path>
+                <path fill="rgba(139,92,246,0.016)" transform="translate(100,100)" d="M38.5,-48.2C52.6,-43.8,68.4,-36.4,74.1,-24.2C79.8,-12,75.5,5.1,68,19.1C60.5,33.2,49.8,44.2,37.2,52.6C24.6,61,-1.9,66.8,-17.6,62.3C-33.3,57.8,-38.2,43.1,-48.2,29.7C-58.3,16.3,-73.5,4.2,-76.2,-10.5C-78.9,-25.1,-69.1,-42.2,-55,-51.8C-41,-61.4,-22.6,-63.5,-5.6,-57.1C11.5,-50.7,24.5,-52.5,38.5,-48.2Z"/>
             </svg>
         </div>
         <div class="bg-blob bg-blob-3">
             <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="rgba(247,160,114,0.016)" transform="translate(100,100)">
-                    <animate attributeName="d" dur="32s" repeatCount="indefinite" values="
-                        M42.1,-53.4C55.3,-49.3,67.2,-38.3,72.6,-24.5C78,-10.7,76.9,5.9,70.5,19.6C64.1,33.3,52.5,44.2,39.4,52.9C26.3,61.7,11.7,68.3,-2.6,71.6C-16.9,74.9,-30.9,74.8,-42.5,67.2C-54.1,59.5,-63.3,44.3,-68.5,28.1C-73.8,11.8,-75.1,-5.5,-70.3,-20.4C-65.5,-35.3,-54.5,-47.7,-41.5,-51.9C-28.6,-56.1,-13.7,-52.1,0.8,-53.2C15.3,-54.2,28.9,-57.5,42.1,-53.4Z;
-                        M46.3,-60.5C59.3,-52.1,68.8,-37.7,73.3,-22C77.8,-6.3,77.4,10.8,70.8,24.8C64.2,38.8,51.4,49.7,37.3,57.4C23.1,65.1,7.6,69.5,-7.2,68.3C-22.1,67.2,-36.3,60.4,-48,50C-59.7,39.7,-68.8,25.8,-72.1,10.4C-75.5,-5,-73.1,-21.8,-64.8,-34.5C-56.5,-47.2,-42.4,-55.8,-28.6,-63.8C-14.9,-71.7,-1.5,-79,10.8,-76.1C23.1,-73.2,33.3,-68.9,46.3,-60.5Z;
-                        M40.1,-50.6C53.1,-46.8,65.5,-37,71.5,-23.8C77.4,-10.6,76.9,5.9,71.2,20.3C65.5,34.8,54.5,47.1,41.3,55.5C28.1,63.9,12.6,68.5,-2.7,71.9C-18.1,75.3,-33.2,77.5,-44.5,70.1C-55.8,62.6,-63.3,45.5,-67.7,28.6C-72.1,11.8,-73.3,-4.7,-68.7,-18.8C-64.1,-33,-53.6,-44.8,-41.1,-48.9C-28.6,-53,-14.3,-49.4,0.3,-49.9C14.9,-50.3,27.2,-54.5,40.1,-50.6Z;
-                        M42.1,-53.4C55.3,-49.3,67.2,-38.3,72.6,-24.5C78,-10.7,76.9,5.9,70.5,19.6C64.1,33.3,52.5,44.2,39.4,52.9C26.3,61.7,11.7,68.3,-2.6,71.6C-16.9,74.9,-30.9,74.8,-42.5,67.2C-54.1,59.5,-63.3,44.3,-68.5,28.1C-73.8,11.8,-75.1,-5.5,-70.3,-20.4C-65.5,-35.3,-54.5,-47.7,-41.5,-51.9C-28.6,-56.1,-13.7,-52.1,0.8,-53.2C15.3,-54.2,28.9,-57.5,42.1,-53.4Z
-                    " calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1; 0.4 0 0.2 1"/>
-                </path>
-            </svg>
-        </div>
-        <div class="bg-blob bg-blob-4">
-            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="rgba(52,199,89,0.013)" transform="translate(100,100)">
-                    <animate attributeName="d" dur="36s" repeatCount="indefinite" values="
-                        M36.8,-47.7C49.5,-42.3,62.6,-34.3,68.4,-22.3C74.1,-10.3,72.5,5.7,66.5,19.1C60.5,32.6,50,43.5,37.6,51.6C25.3,59.8,11.1,65.1,-3.4,69.4C-17.8,73.7,-32.5,77,-44.3,70.5C-56.1,64,-65,47.7,-69.6,30.8C-74.2,13.8,-74.5,-3.8,-69.3,-18.8C-64.1,-33.7,-53.4,-45.9,-40.7,-51.3C-28,-56.7,-13.3,-55.3,0.2,-55.6C13.8,-55.8,24.1,-53.2,36.8,-47.7Z;
-                        M40.3,-52C53.3,-46,65.5,-36.1,71,-22.7C76.6,-9.4,75.5,7.3,69.5,21.4C63.5,35.5,52.7,46.9,39.8,54.6C26.9,62.4,11.9,66.5,-2.4,69.6C-16.7,72.6,-30.2,74.6,-41.7,68.1C-53.1,61.6,-62.4,46.6,-67.8,30.6C-73.1,14.7,-74.4,-2.2,-70.1,-17.3C-65.8,-32.4,-55.8,-45.7,-43.1,-51.8C-30.4,-57.8,-15.2,-56.7,-0.7,-55.8C13.7,-54.9,27.4,-58,40.3,-52Z;
-                        M36.8,-47.7C49.5,-42.3,62.6,-34.3,68.4,-22.3C74.1,-10.3,72.5,5.7,66.5,19.1C60.5,32.6,50,43.5,37.6,51.6C25.3,59.8,11.1,65.1,-3.4,69.4C-17.8,73.7,-32.5,77,-44.3,70.5C-56.1,64,-65,47.7,-69.6,30.8C-74.2,13.8,-74.5,-3.8,-69.3,-18.8C-64.1,-33.7,-53.4,-45.9,-40.7,-51.3C-28,-56.7,-13.3,-55.3,0.2,-55.6C13.8,-55.8,24.1,-53.2,36.8,-47.7Z
-                    " calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1"/>
-                </path>
-            </svg>
-        </div>
-        <div class="bg-blob bg-blob-5">
-            <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-                <path fill="rgba(0,122,255,0.012)" transform="translate(100,100)">
-                    <animate attributeName="d" dur="40s" repeatCount="indefinite" values="
-                        M43.2,-55.9C55.8,-50.6,65.7,-38.1,71.5,-23.5C77.3,-8.9,79.1,7.8,73.4,21.7C67.7,35.5,54.5,46.5,40.4,54.8C26.3,63.1,11.3,68.6,-3.9,73.5C-19.1,78.3,-34.4,82.6,-45.6,75.1C-56.8,67.7,-63.8,48.5,-67.3,30.3C-70.7,12.1,-70.5,-5.1,-65.1,-19.5C-59.7,-33.8,-49.1,-45.3,-36.8,-50.8C-24.4,-56.3,-10.4,-55.8,2.7,-59.3C15.7,-62.8,30.6,-61.3,43.2,-55.9Z;
-                        M38.5,-48.2C52.6,-43.8,68.4,-36.4,74.1,-24.2C79.8,-12,75.5,5.1,68,19.1C60.5,33.2,49.8,44.2,37.2,52.6C24.6,61,-1.9,66.8,-17.6,62.3C-33.3,57.8,-38.2,43.1,-48.2,29.7C-58.3,16.3,-73.5,4.2,-76.2,-10.5C-78.9,-25.1,-69.1,-42.2,-55,-51.8C-41,-61.4,-22.6,-63.5,-5.6,-57.1C11.5,-50.7,24.5,-52.5,38.5,-48.2Z;
-                        M43.2,-55.9C55.8,-50.6,65.7,-38.1,71.5,-23.5C77.3,-8.9,79.1,7.8,73.4,21.7C67.7,35.5,54.5,46.5,40.4,54.8C26.3,63.1,11.3,68.6,-3.9,73.5C-19.1,78.3,-34.4,82.6,-45.6,75.1C-56.8,67.7,-63.8,48.5,-67.3,30.3C-70.7,12.1,-70.5,-5.1,-65.1,-19.5C-59.7,-33.8,-49.1,-45.3,-36.8,-50.8C-24.4,-56.3,-10.4,-55.8,2.7,-59.3C15.7,-62.8,30.6,-61.3,43.2,-55.9Z
-                    " calcMode="spline" keySplines="0.4 0 0.2 1; 0.4 0 0.2 1"/>
-                </path>
+                <path fill="rgba(247,160,114,0.016)" transform="translate(100,100)" d="M42.1,-53.4C55.3,-49.3,67.2,-38.3,72.6,-24.5C78,-10.7,76.9,5.9,70.5,19.6C64.1,33.3,52.5,44.2,39.4,52.9C26.3,61.7,11.7,68.3,-2.6,71.6C-16.9,74.9,-30.9,74.8,-42.5,67.2C-54.1,59.5,-63.3,44.3,-68.5,28.1C-73.8,11.8,-75.1,-5.5,-70.3,-20.4C-65.5,-35.3,-54.5,-47.7,-41.5,-51.9C-28.6,-56.1,-13.7,-52.1,0.8,-53.2C15.3,-54.2,28.9,-57.5,42.1,-53.4Z"/>
             </svg>
         </div>
     </div>
@@ -1819,7 +1722,14 @@ void main(){
         }).observe(face, { attributes: true, attributeFilter: ['class'] });
       }
 
+      const defaultScreen = document.getElementById('defaultScreen');
+
       function draw() {
+        // Skip rendering when orb isn't visible (menu/other screens)
+        if (!defaultScreen || !defaultScreen.classList.contains('active')) {
+          requestAnimationFrame(draw);
+          return;
+        }
         time += 0.016;
         // Smooth mic level — slight damping to avoid spikes
         smoothMic += (micLevel - smoothMic) * 0.08;
