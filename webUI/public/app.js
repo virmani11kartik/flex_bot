@@ -1881,62 +1881,59 @@ async function handleVoiceAssistantPrompt(transcript) {
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/chatbot-stream');
   xhr.setRequestHeader('Content-Type', 'application/json');
-  var lastIdx = 0;
+  var sentencesSeen = 0;
 
-  function processSSEChunk(text) {
-    var lines = text.split('\n');
+  function processFullResponse() {
+    var lines = xhr.responseText.split('\n');
+    var idx = 0;
+    var newFullReply = '';
+
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line.startsWith('data: ')) continue;
       var payload = line.slice(6);
       if (payload === '[DONE]') {
-        streamDone = true;
-        voiceConversationHistory.push({ role: 'user', content: transcript });
-        voiceConversationHistory.push({ role: 'assistant', content: fullReply });
-        voiceConversationHistory = voiceConversationHistory.slice(-8);
-        resetVoiceHistoryTimeout();
-        console.log('Robot answer: ' + fullReply);
-        if (!isPlaying && audioQueue.length === 0) onAllDone();
+        if (!streamDone) {
+          streamDone = true;
+          fullReply = newFullReply;
+          voiceConversationHistory.push({ role: 'user', content: transcript });
+          voiceConversationHistory.push({ role: 'assistant', content: fullReply });
+          voiceConversationHistory = voiceConversationHistory.slice(-8);
+          resetVoiceHistoryTimeout();
+          console.log('Robot answer: ' + fullReply);
+          if (!isPlaying && audioQueue.length === 0) onAllDone();
+        }
         continue;
       }
       try {
         var parsed = JSON.parse(payload);
         if (parsed.error) { console.error('Stream error:', parsed.error); continue; }
         if (parsed.sentence) {
-          fullReply += (fullReply ? ' ' : '') + parsed.sentence;
-          prefetchTTS(parsed.sentence);
-          if (firstSentence) { firstSentence = false; isVoiceSpeaking = true; }
-          updateVoiceAssistantUI({
-            status: 'Speaking...',
-            message: fullReply,
-            transcript: 'You said: "' + transcript + '"',
-            buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
-            listening: false,
-            speaking: true,
-          });
-          playNext();
+          newFullReply += (newFullReply ? ' ' : '') + parsed.sentence;
+          if (idx >= sentencesSeen) {
+            // New sentence — prefetch TTS and queue for playback
+            sentencesSeen = idx + 1;
+            prefetchTTS(parsed.sentence);
+            if (firstSentence) { firstSentence = false; isVoiceSpeaking = true; }
+            fullReply = newFullReply;
+            updateVoiceAssistantUI({
+              status: 'Speaking...',
+              message: fullReply,
+              transcript: 'You said: "' + transcript + '"',
+              buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
+              listening: false,
+              speaking: true,
+            });
+            playNext();
+          }
+          idx++;
         }
       } catch(e) {}
     }
   }
 
-  xhr.onprogress = function() {
-    var newData = xhr.responseText.substring(lastIdx);
-    lastIdx = xhr.responseText.length;
-    processSSEChunk(newData);
-  };
-
-  xhr.onload = function() {
-    // Always re-parse the full response — processSSEChunk skips already-seen sentences
-    // because fullReply already contains them and [DONE] can only fire once
-    if (!streamDone) {
-      lastIdx = 0;
-      fullReply = '';
-      firstSentence = true;
-      audioQueue = [];
-      processSSEChunk(xhr.responseText);
-    }
-  };
+  xhr.onprogress = processFullResponse;
+  xhr.onload = processFullResponse;
 
   xhr.onerror = function() {
     console.error('Chatbot stream failed');
