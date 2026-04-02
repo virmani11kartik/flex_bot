@@ -1243,7 +1243,7 @@ class WhisperRecognition {
     this._silenceStart = 0;
     this._speechDetected = false;
     // How long silence after speech before we auto-stop and transcribe (ms)
-    this._silenceThreshold = 1400;
+    this._silenceThreshold = 1800;
     // RMS below this = silence (raise if picking up background noise)
     this._noiseGate = 0.06;
   }
