@@ -1927,16 +1927,14 @@ async function handleVoiceAssistantPrompt(transcript) {
   };
 
   xhr.onload = function() {
-    if (streamDone && fullReply) return; // onprogress handled everything successfully
-    if (!fullReply) {
-      // onprogress missed sentences entirely — re-process full response from scratch
-      streamDone = false;
+    // Always re-parse the full response — processSSEChunk skips already-seen sentences
+    // because fullReply already contains them and [DONE] can only fire once
+    if (!streamDone) {
+      lastIdx = 0;
+      fullReply = '';
       firstSentence = true;
+      audioQueue = [];
       processSSEChunk(xhr.responseText);
-    } else if (!streamDone) {
-      // onprogress got sentences but missed [DONE] — process remaining
-      var remaining = xhr.responseText.substring(lastIdx);
-      if (remaining) processSSEChunk(remaining);
     }
   };
 
