@@ -1927,7 +1927,8 @@ async function handleVoiceAssistantPrompt(transcript) {
   };
 
   xhr.onload = function() {
-    if (streamDone) return;
+    if (streamDone) return; // onprogress already handled everything
+    // Process the entire response — onprogress may not have fired at all
     processSSEChunk(xhr.responseText);
   };
 
