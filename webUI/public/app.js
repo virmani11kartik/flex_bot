@@ -1243,9 +1243,9 @@ class WhisperRecognition {
     this._silenceStart = 0;
     this._speechDetected = false;
     // How long silence after speech before we auto-stop and transcribe (ms)
-    this._silenceThreshold = 1600;
+    this._silenceThreshold = 1400;
     // RMS below this = silence (raise if picking up background noise)
-    this._noiseGate = 0.04;
+    this._noiseGate = 0.06;
   }
 
   async start() {
@@ -1881,61 +1881,55 @@ async function handleVoiceAssistantPrompt(transcript) {
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/chatbot-stream');
   xhr.setRequestHeader('Content-Type', 'application/json');
-  var sentencesSeen = 0;
+  var lastIdx = 0;
 
-  function processFullResponse() {
-    var text = xhr.responseText;
-    if (!text) { console.log('Stream: empty responseText, readyState=' + xhr.readyState); return; }
+  function processSSEChunk(text) {
     var lines = text.split('\n');
-    var idx = 0;
-    var newFullReply = '';
-
     for (var i = 0; i < lines.length; i++) {
       var line = lines[i].trim();
       if (!line.startsWith('data: ')) continue;
       var payload = line.slice(6);
       if (payload === '[DONE]') {
-        if (!streamDone) {
-          streamDone = true;
-          fullReply = newFullReply;
-          voiceConversationHistory.push({ role: 'user', content: transcript });
-          voiceConversationHistory.push({ role: 'assistant', content: fullReply });
-          voiceConversationHistory = voiceConversationHistory.slice(-8);
-          resetVoiceHistoryTimeout();
-          console.log('Robot answer: ' + fullReply);
-          if (!isPlaying && audioQueue.length === 0) onAllDone();
-        }
+        streamDone = true;
+        voiceConversationHistory.push({ role: 'user', content: transcript });
+        voiceConversationHistory.push({ role: 'assistant', content: fullReply });
+        voiceConversationHistory = voiceConversationHistory.slice(-8);
+        resetVoiceHistoryTimeout();
+        console.log('Robot answer: ' + fullReply);
+        if (!isPlaying && audioQueue.length === 0) onAllDone();
         continue;
       }
       try {
         var parsed = JSON.parse(payload);
         if (parsed.error) { console.error('Stream error:', parsed.error); continue; }
         if (parsed.sentence) {
-          newFullReply += (newFullReply ? ' ' : '') + parsed.sentence;
-          if (idx >= sentencesSeen) {
-            // New sentence — prefetch TTS and queue for playback
-            sentencesSeen = idx + 1;
-            prefetchTTS(parsed.sentence);
-            if (firstSentence) { firstSentence = false; isVoiceSpeaking = true; }
-            fullReply = newFullReply;
-            updateVoiceAssistantUI({
-              status: 'Speaking...',
-              message: fullReply,
-              transcript: 'You said: "' + transcript + '"',
-              buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
-              listening: false,
-              speaking: true,
-            });
-            playNext();
-          }
-          idx++;
+          fullReply += (fullReply ? ' ' : '') + parsed.sentence;
+          prefetchTTS(parsed.sentence);
+          if (firstSentence) { firstSentence = false; isVoiceSpeaking = true; }
+          updateVoiceAssistantUI({
+            status: 'Speaking...',
+            message: fullReply,
+            transcript: 'You said: "' + transcript + '"',
+            buttonLabel: voiceSessionActive ? 'Stop' : 'Speak Again',
+            listening: false,
+            speaking: true,
+          });
+          playNext();
         }
       } catch(e) {}
     }
   }
 
-  xhr.onprogress = processFullResponse;
-  xhr.onload = processFullResponse;
+  xhr.onprogress = function() {
+    var newData = xhr.responseText.substring(lastIdx);
+    lastIdx = xhr.responseText.length;
+    processSSEChunk(newData);
+  };
+
+  xhr.onload = function() {
+    if (streamDone) return;
+    processSSEChunk(xhr.responseText);
+  };
 
   xhr.onerror = function() {
     console.error('Chatbot stream failed');
