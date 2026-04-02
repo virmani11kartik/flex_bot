@@ -1243,9 +1243,9 @@ class WhisperRecognition {
     this._silenceStart = 0;
     this._speechDetected = false;
     // How long silence after speech before we auto-stop and transcribe (ms)
-    this._silenceThreshold = 1400;
+    this._silenceThreshold = 1600;
     // RMS below this = silence (raise if picking up background noise)
-    this._noiseGate = 0.06;
+    this._noiseGate = 0.04;
   }
 
   async start() {
@@ -1927,9 +1927,17 @@ async function handleVoiceAssistantPrompt(transcript) {
   };
 
   xhr.onload = function() {
-    if (streamDone) return; // onprogress already handled everything
-    // Process the entire response — onprogress may not have fired at all
-    processSSEChunk(xhr.responseText);
+    if (streamDone && fullReply) return; // onprogress handled everything successfully
+    if (!fullReply) {
+      // onprogress missed sentences entirely — re-process full response from scratch
+      streamDone = false;
+      firstSentence = true;
+      processSSEChunk(xhr.responseText);
+    } else if (!streamDone) {
+      // onprogress got sentences but missed [DONE] — process remaining
+      var remaining = xhr.responseText.substring(lastIdx);
+      if (remaining) processSSEChunk(remaining);
+    }
   };
 
   xhr.onerror = function() {
