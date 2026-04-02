@@ -1634,7 +1634,7 @@
         smoothMic += (micLevel - smoothMic) * 0.08;
         var micScale = 1.0 + 0.7 * (1.0 - Math.exp(-smoothMic * 5.0));
         canvas.style.transform = 'translate(-50%, -50%) scale(' + micScale + ')';
-        var amt = 12 + smoothMic * 20; // visible organic baseline, mic amplifies
+        var amt = 3 + smoothMic * 28; // near-circle at idle, liquid when speaking
 
         ctx.clearRect(0, 0, 320, 320);
 
@@ -1650,9 +1650,9 @@
 
         // 2) Edge glow — multiple layered strokes faking a soft blur
         var glowLayers = [
-          { width: 16, alpha: 0.04 },
-          { width: 10, alpha: 0.07 },
-          { width: 6,  alpha: 0.12 },
+          { width: 16, alpha: 0.03 },
+          { width: 10, alpha: 0.05 },
+          { width: 6,  alpha: 0.09 },
         ];
         for (var gi = 0; gi < glowLayers.length; gi++) {
           blobPath(CX, CY, BASE_R, amt, 0);
@@ -1709,7 +1709,7 @@
 
         // 6) Clear bright rim ring on top
         blobPath(CX, CY, BASE_R, amt, 0);
-        ctx.strokeStyle = 'rgba(180,150,255,0.45)';
+        ctx.strokeStyle = 'rgba(180,150,255,0.35)';
         ctx.lineWidth = 1.8;
         ctx.stroke();
 
