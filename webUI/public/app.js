@@ -1219,8 +1219,11 @@ class WhisperRecognition {
     this._silenceTimer = null;
     this._analyser = null;
     this._silenceStart = 0;
-    // How long silence before we auto-stop and transcribe (ms)
-    this._silenceThreshold = 1800;
+    this._speechDetected = false;
+    // How long silence after speech before we auto-stop and transcribe (ms)
+    this._silenceThreshold = 1200;
+    // RMS below this = silence (raise if picking up background noise)
+    this._noiseGate = 0.06;
   }
 
   async start() {
@@ -1236,16 +1239,22 @@ class WhisperRecognition {
       const chunks = [];
       this._recorder.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
       this._recorder.onstop = async () => {
-        if (chunks.length === 0) { this._finish(); return; }
+        if (chunks.length === 0 || !this._speechDetected) {
+          chunks.length = 0;
+          if (this._recording) { this._recorder.start(); this._watchSilence(); }
+          else { this._finish(); }
+          return;
+        }
         const blob = new Blob(chunks, { type: 'audio/webm' });
         await this._transcribe(blob);
-        // If still in continuous mode, restart
+        // Fire onend so the app processes the transcript (handleVoiceAssistantPrompt)
+        if (this.onend) this.onend();
+        // If still in continuous mode, restart for next utterance
         if (this._recording) {
           chunks.length = 0;
           this._recorder.start();
           this._watchSilence();
-        } else {
-          this._finish();
+          if (this.onstart) this.onstart();
         }
       };
 
@@ -1276,15 +1285,20 @@ class WhisperRecognition {
   _watchSilence() {
     clearInterval(this._silenceTimer);
     this._silenceStart = Date.now();
+    this._speechDetected = false;
     const buf = new Uint8Array(this._analyser.frequencyBinCount);
     this._silenceTimer = setInterval(() => {
       this._analyser.getByteTimeDomainData(buf);
       let sum = 0;
       for (let i = 0; i < buf.length; i++) { const v = (buf[i] - 128) / 128; sum += v * v; }
       const rms = Math.sqrt(sum / buf.length);
-      if (rms > 0.02) { this._silenceStart = Date.now(); }
-      // After silence threshold, stop recording to trigger transcription
-      if (Date.now() - this._silenceStart > this._silenceThreshold) {
+      if (rms > this._noiseGate) {
+        // Actual speech detected
+        this._speechDetected = true;
+        this._silenceStart = Date.now();
+      }
+      // Only trigger transcription after speech was detected then went silent
+      if (this._speechDetected && Date.now() - this._silenceStart > this._silenceThreshold) {
         clearInterval(this._silenceTimer);
         if (this._recorder && this._recorder.state === 'recording') {
           this._recorder.stop(); // triggers onstop → transcribe
