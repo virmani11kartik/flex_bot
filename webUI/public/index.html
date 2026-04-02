@@ -1482,8 +1482,10 @@
       if (!gl) return;
 
       const vs = `attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}`;
-      const fs = `
-precision highp float;
+      // Use highp if available, fall back to mediump (Firefox on Jetson/Tegra)
+      const hasHighp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).precision > 0;
+      const precisionDecl = hasHighp ? 'precision highp float;' : 'precision mediump float;';
+      const fs = precisionDecl + `
 uniform float t;
 uniform float mode;
 uniform float mic; // 0-1 mic loudness

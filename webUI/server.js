@@ -24,6 +24,38 @@ app.post('/api/log-detection', (req, res) => {
   res.json({ success: true });
 });
 
+// Whisper speech-to-text — Firefox fallback for Web Speech API
+app.post('/api/transcribe', express.raw({ type: '*/*', limit: '5mb' }), async (req, res) => {
+  if (!OPENAI_API_KEY) {
+    return res.status(503).json({ error: 'OPENAI_API_KEY is not configured.' });
+  }
+
+  try {
+    const { FormData, Blob } = await import('buffer');
+    const form = new FormData();
+    form.append('file', new Blob([req.body], { type: 'audio/webm' }), 'audio.webm');
+    form.append('model', 'whisper-1');
+    form.append('language', 'en');
+
+    const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + OPENAI_API_KEY },
+      body: form,
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      console.error('Whisper API error:', data);
+      return res.status(response.status).json({ error: (data.error && data.error.message) || 'Transcription failed.' });
+    }
+
+    res.json({ text: data.text || '' });
+  } catch (error) {
+    console.error('Transcribe error:', error);
+    res.status(500).json({ error: 'Transcription failed.' });
+  }
+});
+
 app.post('/api/chatbot', async (req, res) => {
   const { message, history = [] } = req.body || {};
 
