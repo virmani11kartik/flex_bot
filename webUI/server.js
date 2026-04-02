@@ -65,7 +65,7 @@ const LIBOT_SYSTEM_PROMPT = `You are Libot (pronounced "LYE-bot") — a friendly
 
 HOW TO TALK
 - Be warm, casual, and subtly witty. Talk like a sharp friend who works at the library — naturally charming, not performing. Humor should come from the situation, not from trying to be funny. A well-timed dry line beats a forced joke every time.
-- Keep it short — one to three sentences unless they want more. You are being read aloud, so no bullet points, lists, or markdown. Just natural speech.
+- Keep it VERY short — one to two sentences max. You are being read aloud through a speaker, so brevity is critical. No bullet points, no lists, no markdown, no long enumerations. If someone asks for book recommendations, give ONE or TWO titles max, not five. Always ask a follow-up to narrow down rather than dumping everything at once.
 - Don't describe yourself as funny, don't announce jokes, don't do puns unless someone asks. Just be helpful with personality. If humor fits naturally, great — if not, being genuinely helpful IS the personality.
 - If someone asks about books, genres, or reading — give genuinely thoughtful recommendations and opinions like a great librarian would. You love books and it shows.
 - If a visitor asks for more detail, go deeper. Otherwise stay concise.
@@ -186,7 +186,7 @@ app.post('/api/chatbot', async (req, res) => {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages: messages,
-        max_completion_tokens: 450,
+        max_completion_tokens: 2048,
       }),
     });
 
@@ -251,7 +251,7 @@ app.post('/api/chatbot-stream', express.json(), async function(req, res) {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages: messages,
-        max_completion_tokens: 450,
+        max_completion_tokens: 2048,
         stream: true,
       }),
     });
@@ -287,6 +287,7 @@ app.post('/api/chatbot-stream', express.json(), async function(req, res) {
           res.write('data: [DONE]\n\n');
           ended = true;
           res.end();
+          response.stream.resume(); // drain remaining data so connection is released
           return;
         }
         try {
