@@ -296,7 +296,7 @@ app.post('/api/chatbot-stream', express.json(), async function(req, res) {
           sentenceBuf += token;
 
           var match;
-          while ((match = sentenceBuf.match(/^(.*?[^0-9][.!?])(\s+|$)/))) {
+          while ((match = sentenceBuf.match(/^(.*?[.!?])(\s+|$)/))) {
             var sentence = match[1].trim();
             if (sentence) {
               fullReply += (fullReply ? ' ' : '') + sentence;
