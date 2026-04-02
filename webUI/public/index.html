@@ -79,7 +79,7 @@
            ================================================================ */
         .bg-pattern {
             position: fixed;
-            inset: 0;
+            top: 0; right: 0; bottom: 0; left: 0;
             overflow: hidden;
             pointer-events: none;
             z-index: 0;
@@ -151,7 +151,7 @@
            ================================================================ */
         .screen {
             position: absolute;
-            inset: 0;
+            top: 0; right: 0; bottom: 0; left: 0;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -423,7 +423,7 @@
         .btn-start-wrap::after {
             content: '';
             position: absolute;
-            inset: -10px -8px -8px -10px;
+            top: -10px; right: -8px; bottom: -8px; left: -10px;
             border-radius: var(--radius-pill);
             background: radial-gradient(ellipse at 30% 38%, rgba(0,122,255,0.36), rgba(139,92,246,0.24) 55%, transparent 90%);
             /* filter: blur removed for performance */
@@ -556,6 +556,7 @@
            ================================================================ */
         .menu-content {
             text-align: center;
+            width: 100%;
             max-width: 780px;
             padding: 28px;
         }
@@ -871,7 +872,7 @@
 
         .threshold-fill::after {
             content: '';
-            position: absolute; inset: 0;
+            position: absolute; top: 0; right: 0; bottom: 0; left: 0;
             background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
             animation: shimmer 2s infinite;
         }
@@ -1474,238 +1475,182 @@
 
     <script src="app.js"></script>
     <script>
-    // WebGL iridescent sphere — ray-marched with Fresnel, specular, organic deformation
+    // Orb visualizer — tries WebGL first, falls back to Canvas2D
     (function() {
       const canvas = document.getElementById('orbCanvas');
       if (!canvas) return;
-      const gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
-      if (!gl) return;
 
-      const vs = `attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}`;
-      // Use highp if available, fall back to mediump (Firefox on Jetson/Tegra)
-      const hasHighp = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT).precision > 0;
-      const precisionDecl = hasHighp ? 'precision highp float;' : 'precision mediump float;';
-      const fs = precisionDecl + `
-uniform float t;
-uniform float mode;
-uniform float mic; // 0-1 mic loudness
-uniform vec2 res;
+      let micLevel = 0, smoothMic = 0, modeVal = 0;
 
-vec3 hash(vec3 p){
-  p=vec3(dot(p,vec3(127.1,311.7,74.7)),dot(p,vec3(269.5,183.3,246.1)),dot(p,vec3(113.5,271.9,124.6)));
-  return fract(sin(p)*43758.5453)*2.0-1.0;
-}
-float noise(vec3 p){
-  vec3 i=floor(p),f=fract(p);
-  f=f*f*(3.0-2.0*f);
-  return mix(mix(mix(dot(hash(i),f),dot(hash(i+vec3(1,0,0)),f-vec3(1,0,0)),f.x),
-    mix(dot(hash(i+vec3(0,1,0)),f-vec3(0,1,0)),dot(hash(i+vec3(1,1,0)),f-vec3(1,1,0)),f.x),f.y),
-    mix(mix(dot(hash(i+vec3(0,0,1)),f-vec3(0,0,1)),dot(hash(i+vec3(1,0,1)),f-vec3(1,0,1)),f.x),
-    mix(dot(hash(i+vec3(0,1,1)),f-vec3(0,1,1)),dot(hash(i+vec3(1,1,1)),f-vec3(1,1,1)),f.x),f.y),f.z);
-}
-
-mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0,s,0,1,0,-s,0,c);}
-mat3 rotX(float a){float c=cos(a),s=sin(a);return mat3(1,0,0,0,c,-s,0,s,c);}
-
-float sdf(vec3 p){
-  vec3 rp=rotY(t*0.195)*rotX(t*0.117)*p;
-  float amt=0.055+mic*0.9;
-  float n=noise(rp*0.9+t*0.3)*amt*0.8
-         +noise(rp*2.5+t*0.49)*amt*0.5;
-  return length(p)-0.62-n;
-}
-
-vec3 calcNormal(vec3 p){
-  vec2 e=vec2(0.003,0);
-  return normalize(vec3(sdf(p+e.xyy)-sdf(p-e.xyy),sdf(p+e.yxy)-sdf(p-e.yxy),sdf(p+e.yyx)-sdf(p-e.yyx)));
-}
-
-vec3 iridescence(float angle,float thickness){
-  float d=thickness*cos(angle);
-  return 0.5+0.5*cos(6.2832*(d*vec3(1.0,0.72,0.55)+vec3(0.0,0.12,0.25)));
-}
-
-void main(){
-  vec2 uv=(gl_FragCoord.xy-res*0.5)/min(res.x,res.y)*2.0;
-  vec3 ro=vec3(0,0,2.2);
-  vec3 rd=normalize(vec3(uv,-1.5));
-
-  float d=0.0;
-  float minDist=999.0;
-  bool hit=false;
-  for(int i=0;i<48;i++){
-    vec3 p=ro+rd*d;
-    float s=sdf(p);
-    if(s<minDist) minDist=s;
-    if(s<0.002){hit=true;break;}
-    if(d>4.0)break;
-    d+=s;
-  }
-
-  vec4 col=vec4(0);
-
-  if(hit){
-    vec3 p=ro+rd*d;
-    vec3 n=calcNormal(p);
-    vec3 v=normalize(-rd);
-    float NdotV=max(dot(n,v),0.0);
-
-    // Fresnel — thick rim
-    float fresnel=pow(1.0-NdotV,1.6);
-    float rimThick=smoothstep(0.0,0.5,fresnel);
-
-    // Iridescent thin-film
-    float viewAngle=acos(clamp(NdotV,0.0,1.0));
-    float film=1.3+noise(p*3.0+t*0.1)*0.5;
-    vec3 irid=iridescence(viewAngle,film);
-
-    // All button colors flowing across surface — purple-forward
-    vec3 blue=vec3(0.0,0.478,1.0);
-    vec3 purple=vec3(0.545,0.361,0.965);
-    vec3 green=vec3(0.204,0.780,0.349);
-    // Noise-driven spatial flow
-    vec3 fp=rotY(t*0.08)*p;
-    float n1=noise(fp*1.8+t*0.1)*0.5+0.5;
-    float n2=noise(fp*1.8+vec3(7.3,2.1,5.6)+t*0.08)*0.5+0.5;
-    // Cyan-green flow — separate noise channel, faster motion
-    vec3 cyan=vec3(0.0,0.85,0.8);
-    float n3=noise(fp*2.2+vec3(3.1,9.4,1.7)+t*0.18)*0.5+0.5;
-    float cyanFlow=smoothstep(0.45,0.75,n3);
-
-    // Purple-dominant blend with blue accents + cyan-green streams
-    vec3 baseTint=mix(purple,blue,n1*0.55)+green*n2*0.15;
-    baseTint=mix(baseTint,cyan,cyanFlow*0.35);
-
-    // Minimal iridescence — keep base colors punchy
-    vec3 surfCol=mix(baseTint,irid*1.1,0.15+rimThick*0.1);
-
-    // Single specular light
-    vec3 L1=normalize(vec3(-0.5,0.7,0.8));
-    float s1=pow(max(dot(reflect(-v,n),L1),0.0),32.0);
-    vec3 specCol=vec3(0.85,0.9,1.0)*s1*0.5;
-
-    float bright=1.0+mode*0.1+mic*0.2;
-
-    col.rgb=surfCol*bright+specCol;
-
-    // Enough alpha for saturated color
-    col.a=rimThick*0.6;
-  } else {
-    // Purple glow follows orb shape — wider gradient falloff
-    float g=smoothstep(0.18,0.0,minDist);
-    vec3 gc=vec3(0.545,0.361,0.965);
-    col=vec4(gc,g*g*0.11);
-  }
-
-  gl_FragColor=col;
-}`;
-
-      function compile(src, type) {
-        const s = gl.createShader(type);
-        gl.shaderSource(s, src);
-        gl.compileShader(s);
-        if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) {
-          console.error(gl.getShaderInfoLog(s));
-          return null;
-        }
-        return s;
-      }
-
-      const vsh = compile(vs, gl.VERTEX_SHADER);
-      const fsh = compile(fs, gl.FRAGMENT_SHADER);
-      if (!vsh || !fsh) return;
-
-      const prog = gl.createProgram();
-      gl.attachShader(prog, vsh);
-      gl.attachShader(prog, fsh);
-      gl.linkProgram(prog);
-      if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) {
-        console.error(gl.getProgramInfoLog(prog));
-        return;
-      }
-      gl.useProgram(prog);
-
-      const buf = gl.createBuffer();
-      gl.bindBuffer(gl.ARRAY_BUFFER, buf);
-      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1, 1,-1, -1,1, 1,1]), gl.STATIC_DRAW);
-      const pLoc = gl.getAttribLocation(prog, 'p');
-      gl.enableVertexAttribArray(pLoc);
-      gl.vertexAttribPointer(pLoc, 2, gl.FLOAT, false, 0, 0);
-
-      const uT = gl.getUniformLocation(prog, 't');
-      const uMode = gl.getUniformLocation(prog, 'mode');
-      const uRes = gl.getUniformLocation(prog, 'res');
-      const uMic = gl.getUniformLocation(prog, 'mic');
-
-      // No WebGL blending — single fullscreen quad, browser composites via canvas alpha
-      gl.disable(gl.BLEND);
-
-      let time = 0;
-      let modeVal = 0;
-      let micLevel = 0;
-      let smoothMic = 0;
-
-      // Mic audio input → loudness for orb deformation
-      (async () => {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-          const actx = new AudioContext();
-          const src = actx.createMediaStreamSource(stream);
-          const analyser = actx.createAnalyser();
+      // Shared mic setup
+      function setupMic() {
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(function(stream) {
+          var actx = new AudioContext();
+          var src = actx.createMediaStreamSource(stream);
+          var analyser = actx.createAnalyser();
           analyser.fftSize = 256;
           analyser.smoothingTimeConstant = 0.4;
           src.connect(analyser);
-          const buf = new Uint8Array(analyser.frequencyBinCount);
+          var buf = new Uint8Array(analyser.frequencyBinCount);
           function readMic() {
             analyser.getByteTimeDomainData(buf);
-            let sum = 0;
-            for (let i = 0; i < buf.length; i++) {
-              const v = (buf[i] - 128) / 128;
-              sum += v * v;
-            }
+            var sum = 0;
+            for (var i = 0; i < buf.length; i++) { var v = (buf[i] - 128) / 128; sum += v * v; }
             micLevel = Math.sqrt(sum / buf.length);
-            setTimeout(readMic, 50); // ~20Hz instead of 60fps
+            setTimeout(readMic, 50);
           }
           readMic();
-        } catch (e) {
-          console.warn('Mic not available for orb visualizer:', e);
-        }
-      })();
+        }).catch(function(e) { console.warn('Mic not available:', e); });
+      }
+      setupMic();
 
-      const face = document.querySelector('#defaultScreen .robot-face');
+      // Shared face watcher
+      var face = document.querySelector('#defaultScreen .robot-face');
       if (face) {
-        new MutationObserver(() => {
+        new MutationObserver(function() {
           if (face.classList.contains('listening')) modeVal = 1;
           else if (face.classList.contains('speaking')) modeVal = 2;
           else modeVal = 0;
         }).observe(face, { attributes: true, attributeFilter: ['class'] });
       }
 
-      const defaultScreen = document.getElementById('defaultScreen');
+      var defaultScreen = document.getElementById('defaultScreen');
 
-      function draw() {
-        // Skip rendering when orb isn't visible (menu/other screens)
-        if (!defaultScreen || !defaultScreen.classList.contains('active')) {
-          requestAnimationFrame(draw);
-          return;
+      // ============ Try WebGL ============
+      var gl = canvas.getContext('webgl', { alpha: true, premultipliedAlpha: false });
+      if (gl) {
+        console.log('Orb: using WebGL renderer');
+        var vs = 'attribute vec2 p;void main(){gl_Position=vec4(p,0,1);}';
+        var precFmt = gl.getShaderPrecisionFormat(gl.FRAGMENT_SHADER, gl.HIGH_FLOAT);
+        var hasHighp = precFmt && precFmt.precision > 0;
+        var prec = hasHighp ? 'precision highp float;' : 'precision mediump float;';
+        var fs = prec + '\n' +
+'uniform float t;uniform float mode;uniform float mic;uniform vec2 res;\n' +
+'vec3 hash(vec3 p){vec3 d=vec3(dot(p,vec3(1.27,3.11,0.74)),dot(p,vec3(2.69,1.83,2.46)),dot(p,vec3(1.13,2.71,1.24)));return fract(sin(d)*37.545)*2.0-1.0;}\n' +
+'float noise(vec3 p){vec3 i=floor(p),f=fract(p);f=f*f*(3.0-2.0*f);return mix(mix(mix(dot(hash(i),f),dot(hash(i+vec3(1,0,0)),f-vec3(1,0,0)),f.x),mix(dot(hash(i+vec3(0,1,0)),f-vec3(0,1,0)),dot(hash(i+vec3(1,1,0)),f-vec3(1,1,0)),f.x),f.y),mix(mix(dot(hash(i+vec3(0,0,1)),f-vec3(0,0,1)),dot(hash(i+vec3(1,0,1)),f-vec3(1,0,1)),f.x),mix(dot(hash(i+vec3(0,1,1)),f-vec3(0,1,1)),dot(hash(i+vec3(1,1,1)),f-vec3(1,1,1)),f.x),f.y),f.z);}\n' +
+'mat3 rotY(float a){float c=cos(a),s=sin(a);return mat3(c,0,s,0,1,0,-s,0,c);}\n' +
+'mat3 rotX(float a){float c=cos(a),s=sin(a);return mat3(1,0,0,0,c,-s,0,s,c);}\n' +
+'float sdf(vec3 p){vec3 rp=rotY(t*0.195)*rotX(t*0.117)*p;float amt=0.055+mic*0.9;float n=noise(rp*0.9+t*0.3)*amt*0.8+noise(rp*2.5+t*0.49)*amt*0.5;return length(p)-0.62-n;}\n' +
+'vec3 calcNormal(vec3 p){vec2 e=vec2(0.003,0);return normalize(vec3(sdf(p+e.xyy)-sdf(p-e.xyy),sdf(p+e.yxy)-sdf(p-e.yxy),sdf(p+e.yyx)-sdf(p-e.yyx)));}\n' +
+'vec3 iridescence(float angle,float thickness){float d=thickness*cos(angle);return 0.5+0.5*cos(6.2832*(d*vec3(1.0,0.72,0.55)+vec3(0.0,0.12,0.25)));}\n' +
+'void main(){vec2 uv=(gl_FragCoord.xy-res*0.5)/min(res.x,res.y)*2.0;vec3 ro=vec3(0,0,2.2);vec3 rd=normalize(vec3(uv,-1.5));float d=0.0;float minDist=999.0;bool hit=false;for(int i=0;i<48;i++){vec3 p=ro+rd*d;float s=sdf(p);if(s<minDist)minDist=s;if(s<0.002){hit=true;break;}if(d>4.0)break;d+=s;}vec4 col=vec4(0);if(hit){vec3 p=ro+rd*d;vec3 n=calcNormal(p);vec3 v=normalize(-rd);float NdotV=max(dot(n,v),0.0);float fresnel=pow(1.0-NdotV,1.6);float rimThick=smoothstep(0.0,0.5,fresnel);float viewAngle=acos(clamp(NdotV,0.0,1.0));float film=1.3+noise(p*3.0+t*0.1)*0.5;vec3 irid=iridescence(viewAngle,film);vec3 blue=vec3(0.0,0.478,1.0);vec3 purple=vec3(0.545,0.361,0.965);vec3 green=vec3(0.204,0.780,0.349);vec3 fp=rotY(t*0.08)*p;float n1=noise(fp*1.8+t*0.1)*0.5+0.5;float n2=noise(fp*1.8+vec3(7.3,2.1,5.6)+t*0.08)*0.5+0.5;vec3 cyan=vec3(0.0,0.85,0.8);float n3=noise(fp*2.2+vec3(3.1,9.4,1.7)+t*0.18)*0.5+0.5;float cyanFlow=smoothstep(0.45,0.75,n3);vec3 baseTint=mix(purple,blue,n1*0.55)+green*n2*0.15;baseTint=mix(baseTint,cyan,cyanFlow*0.35);vec3 surfCol=mix(baseTint,irid*1.1,0.15+rimThick*0.1);vec3 L1=normalize(vec3(-0.5,0.7,0.8));float s1=pow(max(dot(reflect(-v,n),L1),0.0),32.0);vec3 specCol=vec3(0.85,0.9,1.0)*s1*0.5;float bright=1.0+mode*0.1+mic*0.2;col.rgb=surfCol*bright+specCol;col.a=rimThick*0.6;}else{float g=smoothstep(0.18,0.0,minDist);vec3 gc=vec3(0.545,0.361,0.965);col=vec4(gc,g*g*0.11);}gl_FragColor=col;}';
+
+        function compile(src, type) {
+          var s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s);
+          if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) { console.error('Shader error:', gl.getShaderInfoLog(s)); return null; }
+          return s;
         }
-        time += 0.016;
-        // Smooth mic level — slight damping to avoid spikes
-        smoothMic += (micLevel - smoothMic) * 0.08;
-        // Inverse exponential scale: 1.0 → max 1.3, saturates quickly
-        const micScale = 1.0 + 0.7 * (1.0 - Math.exp(-smoothMic * 5.0));
-        canvas.style.transform = `translate(-50%, -50%) scale(${micScale})`;
-        gl.viewport(0, 0, canvas.width, canvas.height);
-        gl.clearColor(0, 0, 0, 0);
-        gl.clear(gl.COLOR_BUFFER_BIT);
-        gl.uniform1f(uT, time);
-        gl.uniform1f(uMode, modeVal);
-        gl.uniform1f(uMic, smoothMic);
-        gl.uniform2f(uRes, canvas.width, canvas.height);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
-        requestAnimationFrame(draw);
+        var vsh = compile(vs, gl.VERTEX_SHADER), fsh = compile(fs, gl.FRAGMENT_SHADER);
+        if (!vsh || !fsh) { gl = null; } // Fall through to Canvas2D
+        else {
+          var prog = gl.createProgram(); gl.attachShader(prog, vsh); gl.attachShader(prog, fsh); gl.linkProgram(prog);
+          if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) { console.error(gl.getProgramInfoLog(prog)); gl = null; }
+          else {
+            gl.useProgram(prog);
+            var vbuf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+            gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,1,1]), gl.STATIC_DRAW);
+            var pLoc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(pLoc);
+            gl.vertexAttribPointer(pLoc, 2, gl.FLOAT, false, 0, 0);
+            var uT = gl.getUniformLocation(prog, 't'), uMode = gl.getUniformLocation(prog, 'mode');
+            var uRes = gl.getUniformLocation(prog, 'res'), uMic = gl.getUniformLocation(prog, 'mic');
+            gl.disable(gl.BLEND);
+
+            var time = 0;
+            function drawGL() {
+              if (!defaultScreen || !defaultScreen.classList.contains('active')) { requestAnimationFrame(drawGL); return; }
+              time += 0.016;
+              smoothMic += (micLevel - smoothMic) * 0.08;
+              var micScale = 1.0 + 0.7 * (1.0 - Math.exp(-smoothMic * 5.0));
+              canvas.style.transform = 'translate(-50%, -50%) scale(' + micScale + ')';
+              gl.viewport(0, 0, canvas.width, canvas.height); gl.clearColor(0,0,0,0); gl.clear(gl.COLOR_BUFFER_BIT);
+              gl.uniform1f(uT, time); gl.uniform1f(uMode, modeVal); gl.uniform1f(uMic, smoothMic);
+              gl.uniform2f(uRes, canvas.width, canvas.height); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+              requestAnimationFrame(drawGL);
+            }
+            drawGL();
+            return; // WebGL working — done
+          }
+        }
       }
-      draw();
+
+      // ============ Canvas2D fallback (no WebGL) ============
+      console.log('Orb: WebGL unavailable, using Canvas2D fallback');
+      canvas.width = 320; canvas.height = 320;
+      var ctx = canvas.getContext('2d');
+      if (!ctx) return;
+
+      // Simple noise for deformation
+      function snoise(x, y) {
+        var n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+        return (n - Math.floor(n)) * 2.0 - 1.0;
+      }
+
+      var time2d = 0;
+      var POINTS = 64;
+      var BASE_R = 120;
+
+      function draw2D() {
+        if (!defaultScreen || !defaultScreen.classList.contains('active')) { requestAnimationFrame(draw2D); return; }
+        time2d += 0.016;
+        smoothMic += (micLevel - smoothMic) * 0.08;
+        var micScale = 1.0 + 0.7 * (1.0 - Math.exp(-smoothMic * 5.0));
+        canvas.style.transform = 'translate(-50%, -50%) scale(' + micScale + ')';
+
+        ctx.clearRect(0, 0, 320, 320);
+        var cx = 160, cy = 160;
+        var amt = 3 + smoothMic * 25;
+
+        // Draw multiple layered rings for depth
+        for (var layer = 3; layer >= 0; layer--) {
+          var layerR = BASE_R - layer * 8;
+          var alpha = layer === 0 ? 0.5 : 0.15 + layer * 0.05;
+
+          // Color per layer — cycling blue/purple/cyan
+          var hueShift = time2d * 0.1 + layer * 0.8;
+          var r = Math.floor(80 + 59 * Math.sin(hueShift));
+          var g = Math.floor(60 + 50 * Math.sin(hueShift + 2.1));
+          var b = Math.floor(180 + 65 * Math.sin(hueShift + 4.2));
+
+          ctx.beginPath();
+          for (var i = 0; i <= POINTS; i++) {
+            var angle = (i / POINTS) * Math.PI * 2;
+            var deform = snoise(Math.cos(angle) * 2 + time2d * 0.3, Math.sin(angle) * 2 + time2d * 0.2 + layer) * amt
+                       + snoise(Math.cos(angle) * 4 - time2d * 0.15, Math.sin(angle) * 4 + layer * 3) * amt * 0.4;
+            var pr = layerR + deform;
+            var px = cx + Math.cos(angle) * pr;
+            var py = cy + Math.sin(angle) * pr;
+            if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+
+          if (layer === 0) {
+            // Outermost ring — thicker stroke
+            ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+            ctx.lineWidth = 6;
+            ctx.stroke();
+            // Subtle fill for glow
+            var grad = ctx.createRadialGradient(cx, cy, layerR * 0.6, cx, cy, layerR + 10);
+            grad.addColorStop(0, 'rgba(' + r + ',' + g + ',' + b + ',0.02)');
+            grad.addColorStop(1, 'rgba(' + r + ',' + g + ',' + b + ',0.12)');
+            ctx.fillStyle = grad;
+            ctx.fill();
+          } else {
+            ctx.strokeStyle = 'rgba(' + r + ',' + g + ',' + b + ',' + alpha + ')';
+            ctx.lineWidth = 2 + layer;
+            ctx.stroke();
+          }
+        }
+
+        // Outer glow
+        var glowGrad = ctx.createRadialGradient(cx, cy, BASE_R - 10, cx, cy, BASE_R + 20);
+        glowGrad.addColorStop(0, 'rgba(139,92,246,0.06)');
+        glowGrad.addColorStop(1, 'rgba(139,92,246,0)');
+        ctx.fillStyle = glowGrad;
+        ctx.beginPath(); ctx.arc(cx, cy, BASE_R + 20, 0, Math.PI * 2); ctx.fill();
+
+        requestAnimationFrame(draw2D);
+      }
+      draw2D();
     })();
     </script>
 </body>
