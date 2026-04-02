@@ -184,7 +184,8 @@ app.post('/api/chatbot', async (req, res) => {
       body: JSON.stringify({
         model: OPENAI_MODEL,
         messages: messages,
-        max_completion_tokens: 300,
+        max_completion_tokens: 450,
+        temperature: 0.9,
       }),
     });
 
