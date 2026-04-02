@@ -74,7 +74,7 @@ app.post('/api/chatbot', async (req, res) => {
     if (!response.ok) {
       console.error('OpenAI API error:', data);
       return res.status(response.status).json({
-        error: data.error?.message || 'OpenAI request failed.',
+        error: (data.error && data.error.message) || 'OpenAI request failed.',
       });
     }
 
