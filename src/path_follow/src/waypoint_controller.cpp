@@ -3,21 +3,31 @@
 #include <nav_msgs/msg/odometry.hpp>
 #include <std_msgs/msg/float64.hpp>
 <<<<<<< HEAD
+<<<<<<< HEAD
 #include <sensor_msgs/msg/laser_scan.hpp>
 =======
 #include <std_msgs/msg/string.hpp>
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+#include <std_msgs/msg/string.hpp>
+>>>>>>> jetson
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/pose_with_covariance_stamped.hpp>
 #include <visualization_msgs/msg/marker.hpp>
 #include <visualization_msgs/msg/marker_array.hpp>
 #include <tf2_ros/transform_listener.h>
 #include <tf2_ros/buffer.h>
+<<<<<<< HEAD
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
+=======
+#include <obstacle_detector/msg/obstacles.hpp>
+#include <obstacle_detector/msg/circle_obstacle.hpp>
+>>>>>>> jetson
 
 #include <Eigen/Dense>
 #include <cmath>
 #include <vector>
+<<<<<<< HEAD
 #include <string>
 
 /**
@@ -33,11 +43,21 @@
  * State source (priority order):
  *   1. /amcl_pose  (PoseWithCovarianceStamped) — AMCL localization
  *   2. map->base_link TF                        — fallback
+=======
+#include <limits>
+
+/**
+ * WaypointController — Differential Drive + CBF-QP obstacle avoidance
  *
- * Outputs:
- *   /left_wheel/cmd_vel   (std_msgs/Float64)  rad/s
- *   /right_wheel/cmd_vel  (std_msgs/Float64)  rad/s
+ * CBF-QP layer sits between pure-pursuit and wheel output:
+ *   pure_pursuit → (v_nom, omega_nom) → cbfQP → (v_safe, omega_safe) → wheels
+>>>>>>> jetson
  *
+ * Replanning:
+ *   Proactive — obstacle detected on current path → replan immediately
+ *   Reactive  — robot stuck for stuck_timeout_s_ → replan as fallback
+ *
+<<<<<<< HEAD
  * Parameters (existing):
  *   wheel_radius    (double, 0.076)   m
  *   wheel_base      (double, 0.50)    m   full track width
@@ -83,23 +103,32 @@
  *   Proactive — obstacle detected on current path → replan immediately
  *   Reactive  — robot stuck for stuck_timeout_s_ → replan as fallback
  *
+=======
+>>>>>>> jetson
  * Visualization:
  *   /cbf/visualization (MarkerArray):
  *     Red    disc  — collision boundary  (obs.radius + r_robot)
  *     Orange disc  — CBF active zone     (obs.radius + cbf_influence_dist)
  *     Purple disc  — A* exclusion zone   (obs.radius + astar_clearance_viz)
  *     Yellow arrow — obstacle velocity
+<<<<<<< HEAD
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+>>>>>>> jetson
  */
 class WaypointController : public rclcpp::Node {
 public:
     WaypointController() : rclcpp::Node("waypoint_controller") {
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // ── Existing parameters ──────────────────────────────────────────────
 =======
         // ── robot geometry ─────────────────────────────────────────────────
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+        // ── robot geometry ─────────────────────────────────────────────────
+>>>>>>> jetson
         wheel_radius_    = declare_parameter<double>("wheel_radius",    0.076);
         wheel_base_      = declare_parameter<double>("wheel_base",      0.50);
         max_wheel_rads_  = declare_parameter<double>("max_wheel_rads",  3.0);
@@ -114,6 +143,7 @@ public:
         map_frame_       = declare_parameter<std::string>("map_frame",  "map");
         base_frame_      = declare_parameter<std::string>("base_frame", "base_link");
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         // ── New obstacle-avoidance parameters ────────────────────────────────
         scan_topic_           = declare_parameter<std::string>("scan_topic",           "/scan_fullframe");
@@ -134,6 +164,9 @@ public:
         cbf_lookahead_t_    = declare_parameter<double>("cbf_lookahead_t",     0.5);
 >>>>>>> 26c052e (cbf connstraints loosen)
 =======
+=======
+        // ── CBF params ─────────────────────────────────────────────────────
+>>>>>>> jetson
         cbf_alpha_           = declare_parameter<double>("cbf_alpha",           1.0);
         r_robot_             = declare_parameter<double>("r_robot",             0.25);
         cbf_enabled_         = declare_parameter<bool>  ("cbf_enabled",         true);
@@ -152,6 +185,7 @@ public:
         path_check_horizon_  = declare_parameter<int>   ("path_check_horizon",  30);
         // debounce: minimum seconds between replans
         replan_debounce_s_   = declare_parameter<double>("replan_debounce_s",   1.0);
+<<<<<<< HEAD
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
 
         // ── Initialise local occupancy grid ──────────────────────────────────
@@ -172,6 +206,15 @@ public:
         amcl_sub_ = create_subscription<
             geometry_msgs::msg::PoseWithCovarianceStamped>(
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+
+        tf_buffer_   = std::make_shared<tf2_ros::Buffer>(this->get_clock());
+        tf_listener_ = std::make_shared<tf2_ros::TransformListener>(*tf_buffer_);
+
+        // ── subscribers ────────────────────────────────────────────────────
+        amcl_sub_ = create_subscription<
+            geometry_msgs::msg::PoseWithCovarianceStamped>(
+>>>>>>> jetson
             "/amcl_pose", rclcpp::QoS(5).reliable(),
             [this](geometry_msgs::msg::PoseWithCovarianceStamped::SharedPtr msg) {
                 const auto &p = msg->pose.pose;
@@ -187,6 +230,7 @@ public:
             [this](nav_msgs::msg::Path::SharedPtr msg){ onPath(msg); });
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // NEW: laser scan subscriber
         scan_sub_ = create_subscription<sensor_msgs::msg::LaserScan>(
             scan_topic_, rclcpp::SensorDataQoS(),
@@ -196,6 +240,42 @@ public:
         left_pub_   = create_publisher<std_msgs::msg::Float64>("/left_wheel/cmd_vel",  1);
         right_pub_  = create_publisher<std_msgs::msg::Float64>("/right_wheel/cmd_vel", 1);
         marker_pub_ = create_publisher<visualization_msgs::msg::Marker>("/controller/target", 1);
+=======
+        obs_sub_ = create_subscription<obstacle_detector::msg::Obstacles>(
+            "/tracked_obstacles", rclcpp::QoS(10).best_effort(),
+            [this](obstacle_detector::msg::Obstacles::SharedPtr msg){
+                obstacles_ = msg->circles;
+            });
+
+        status_sub_ = create_subscription<std_msgs::msg::String>(
+            "/positioning/status", 10,
+            [this](std_msgs::msg::String::SharedPtr msg){
+                docking_ = (msg->data.rfind("DOCKING", 0) == 0 ||
+                            msg->data.rfind("DOCKED",  0) == 0);
+            });
+
+        goal_sub_ = create_subscription<geometry_msgs::msg::PoseStamped>(
+            "/goal_pose", 1,
+            [this](geometry_msgs::msg::PoseStamped::SharedPtr g){
+                current_goal_       = *g;
+                have_goal_          = true;
+                last_dist_to_goal_  = 999.0;
+                last_progress_time_ = now();
+                last_replan_time_   = now();
+            });
+
+        // ── publishers ─────────────────────────────────────────────────────
+        left_pub_    = create_publisher<std_msgs::msg::Float64>(
+            "/left_wheel/cmd_vel",  1);
+        right_pub_   = create_publisher<std_msgs::msg::Float64>(
+            "/right_wheel/cmd_vel", 1);
+        marker_pub_  = create_publisher<visualization_msgs::msg::Marker>(
+            "/controller/target", 1);
+        goal_pub_    = create_publisher<geometry_msgs::msg::PoseStamped>(
+            "/goal_pose", 1);
+        cbf_viz_pub_ = create_publisher<visualization_msgs::msg::MarkerArray>(
+            "/cbf/visualization", 1);
+>>>>>>> jetson
 
         // NEW: re-publish goal to A* for replanning
         goal_pub_ = create_publisher<geometry_msgs::msg::PoseStamped>("/goal_pose", 1);
@@ -257,6 +337,7 @@ public:
 
         RCLCPP_INFO(get_logger(),
 <<<<<<< HEAD
+<<<<<<< HEAD
             "WaypointController ready | r=%.3fm L=%.3fm max=%.1frad/s v=%.2fm/s",
             wheel_radius_, wheel_base_, max_wheel_rads_, linear_speed_);
         RCLCPP_INFO(get_logger(),
@@ -281,12 +362,24 @@ private:
 private:
     // ── params ──────────────────────────────────────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+            "WaypointController+CBF ready | "
+            "v=%.2fm/s alpha=%.2f r_robot=%.2fm influence=%.2fm "
+            "astar_clearance=%.2fm",
+            linear_speed_, cbf_alpha_, r_robot_,
+            cbf_influence_dist_, astar_clearance_viz_);
+    }
+
+private:
+    // ── params ──────────────────────────────────────────────────────────────
+>>>>>>> jetson
     double wheel_radius_, wheel_base_, max_wheel_rads_;
     double linear_speed_, max_omega_;
     double goal_tolerance_, final_tolerance_;
     double heading_kp_, lookahead_, slow_dist_, min_speed_;
     std::string map_frame_, base_frame_;
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     // ── New parameters ────────────────────────────────────────────────────────
     std::string scan_topic_;
@@ -298,6 +391,8 @@ private:
 
     // ── Pose state ────────────────────────────────────────────────────────────
 =======
+=======
+>>>>>>> jetson
     double cbf_alpha_;
     double r_robot_;
     bool   cbf_enabled_;
@@ -313,16 +408,27 @@ private:
     double replan_debounce_s_;
 
     // ── state ────────────────────────────────────────────────────────────────
+<<<<<<< HEAD
 >>>>>>> 26c052e (cbf connstraints loosen)
     double pose_x_{0}, pose_y_{0}, pose_yaw_{0};
     bool   have_pose_{false};
     bool   docking_{false};
 <<<<<<< HEAD
 =======
+=======
+    double pose_x_{0}, pose_y_{0}, pose_yaw_{0};
+    bool   have_pose_{false};
+    bool   docking_{false};
+>>>>>>> jetson
     bool   have_goal_{false};
     double last_dist_to_goal_{999.0};
     rclcpp::Time last_progress_time_;
     rclcpp::Time last_replan_time_;
+<<<<<<< HEAD
+=======
+
+    geometry_msgs::msg::PoseStamped current_goal_;
+>>>>>>> jetson
 
     geometry_msgs::msg::PoseStamped current_goal_;
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
@@ -333,6 +439,7 @@ private:
     bool   active_{false};
     geometry_msgs::msg::PoseStamped current_goal_; // stored for replanning
 
+<<<<<<< HEAD
     // ── Local occupancy grid (map frame) ──────────────────────────────────────
     // A flat 2D grid.  origin_x_/origin_y_ = bottom-left corner in map frame.
     // Cells store the last time they were marked occupied (nanoseconds).
@@ -580,6 +687,27 @@ private:
 =======
     // ── utilities ────────────────────────────────────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+    std::vector<obstacle_detector::msg::CircleObstacle> obstacles_;
+
+    // ── ROS handles ──────────────────────────────────────────────────────────
+    std::shared_ptr<tf2_ros::Buffer>            tf_buffer_;
+    std::shared_ptr<tf2_ros::TransformListener> tf_listener_;
+
+    rclcpp::Subscription<geometry_msgs::msg::PoseWithCovarianceStamped>::SharedPtr amcl_sub_;
+    rclcpp::Subscription<nav_msgs::msg::Path>::SharedPtr                           path_sub_;
+    rclcpp::Subscription<obstacle_detector::msg::Obstacles>::SharedPtr             obs_sub_;
+    rclcpp::Subscription<std_msgs::msg::String>::SharedPtr                         status_sub_;
+    rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr               goal_sub_;
+    rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr                           left_pub_, right_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::Marker>::SharedPtr                  marker_pub_;
+    rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr                  goal_pub_;
+    rclcpp::Publisher<visualization_msgs::msg::MarkerArray>::SharedPtr             cbf_viz_pub_;
+    rclcpp::TimerBase::SharedPtr                                                   control_timer_;
+    rclcpp::TimerBase::SharedPtr                                                   viz_timer_;
+
+    // ── utilities ────────────────────────────────────────────────────────────
+>>>>>>> jetson
     static double quatToYaw(double x, double y, double z, double w) {
         return std::atan2(2.0*(w*z + x*y), 1.0 - 2.0*(y*y + z*z));
     }
@@ -596,10 +724,14 @@ private:
     }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
     // ── Diff-drive IK (unchanged) ─────────────────────────────────────────────
 =======
     // ── diff drive IK ────────────────────────────────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+    // ── diff drive IK ────────────────────────────────────────────────────────
+>>>>>>> jetson
     std::pair<double,double> diffDriveIK(double v, double omega) {
         const double a = wheel_base_ / 2.0;
         const double r = wheel_radius_;
@@ -685,8 +817,11 @@ private:
         if (!cbf_enabled_ || obstacles_.empty())
             return {v_nom, omega_nom};
 <<<<<<< HEAD
+<<<<<<< HEAD
         }
 =======
+=======
+>>>>>>> jetson
 
         const double yaw = pose_yaw_;
         const double px  = pose_x_;
@@ -799,7 +934,10 @@ private:
 >>>>>>> 26c052e (cbf connstraints loosen)
     }
 
+<<<<<<< HEAD
     // ── Pure-pursuit lookahead index (unchanged) ──────────────────────────────
+=======
+>>>>>>> jetson
     size_t lookaheadIndex() {
         for (size_t i = wp_idx_; i < waypoints_.size(); ++i)
             if (dist2d(pose_x_, pose_y_,
@@ -809,6 +947,7 @@ private:
         return waypoints_.size() - 1;
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     // =========================================================================
     // Path callback
@@ -841,6 +980,9 @@ private:
 =======
     // ── control loop (20 Hz) ─────────────────────────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
+=======
+    // ── control loop (20 Hz) ─────────────────────────────────────────────────
+>>>>>>> jetson
     void controlLoop() {
         if (docking_) return;
         if (!active_ || waypoints_.empty()) return;
@@ -851,10 +993,14 @@ private:
             return;
         }
 
+<<<<<<< HEAD
         // Re-centre local map around robot every cycle
         recentreLocalMap();
 
         // ── Advance past reached waypoints ────────────────────────────────────
+=======
+        // advance past reached waypoints
+>>>>>>> jetson
         while (wp_idx_ < waypoints_.size() - 1) {
             double d = dist2d(pose_x_, pose_y_,
                               waypoints_[wp_idx_].pose.position.x,
@@ -867,9 +1013,12 @@ private:
         }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
         // ── Check final goal ──────────────────────────────────────────────────
 =======
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+>>>>>>> jetson
         double dist_final = dist2d(pose_x_, pose_y_,
                                    waypoints_.back().pose.position.x,
                                    waypoints_.back().pose.position.y);
@@ -895,6 +1044,7 @@ private:
                     }
                 }
             }
+<<<<<<< HEAD
         }
 
         // check goal reached
@@ -913,16 +1063,27 @@ private:
         // ── pure pursuit → nominal (v, omega) ────────────────────────────
 >>>>>>> 26c052e (cbf connstraints loosen)
 =======
+=======
+        }
+
+        // check goal reached
+        if (dist_final < final_tolerance_) {
+            RCLCPP_INFO(get_logger(), "Goal reached!");
+>>>>>>> jetson
             stopRobot(); active_ = false; return;
         }
 
         // ── pure pursuit → nominal control ────────────────────────────────
+<<<<<<< HEAD
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+>>>>>>> jetson
         size_t tidx = lookaheadIndex();
         double tx = waypoints_[tidx].pose.position.x;
         double ty = waypoints_[tidx].pose.position.y;
         publishTargetMarker(tx, ty);
 
+<<<<<<< HEAD
 <<<<<<< HEAD
         // =====================================================================
         // STATE MACHINE
@@ -965,6 +1126,18 @@ private:
             publishWheelCmds(v, omega);
             break;
 =======
+=======
+        double desired_yaw = std::atan2(ty - pose_y_, tx - pose_x_);
+        double herr        = wrapAngle(desired_yaw - pose_yaw_);
+        double omega       = clamp(heading_kp_ * herr, -max_omega_, max_omega_);
+
+        double v = linear_speed_;
+        if (dist_final < slow_dist_) v *= dist_final / slow_dist_;
+        v *= std::max(0.0, std::cos(herr));
+        v  = std::max(min_speed_, v);
+        if (std::fabs(herr) > M_PI / 2.0) v = 0.0;
+
+>>>>>>> jetson
         // ── CBF-QP safety filter ──────────────────────────────────────────
         auto [v_safe, omega_safe] = cbfQP(v, omega);
 
@@ -973,6 +1146,7 @@ private:
             RCLCPP_WARN_THROTTLE(get_logger(), *get_clock(), 500,
                 "CBF active: v %.3f→%.3f  omega %.3f→%.3f",
                 v, v_safe, omega, omega_safe);
+<<<<<<< HEAD
 >>>>>>> 26c052e (cbf connstraints loosen)
         }
 
@@ -1038,6 +1212,14 @@ private:
 =======
     // ── target marker ────────────────────────────────────────────────────────
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+        }
+
+        publishWheelCmds(v_safe, omega_safe);
+    }
+
+    // ── target marker ────────────────────────────────────────────────────────
+>>>>>>> jetson
     void publishTargetMarker(double x, double y) {
         visualization_msgs::msg::Marker m;
         m.header.frame_id = map_frame_;
@@ -1053,6 +1235,7 @@ private:
         marker_pub_->publish(m);
     }
 
+<<<<<<< HEAD
 <<<<<<< HEAD
     // Publish occupied local map cells as POINTS marker for RViz
     void publishLocalMapMarker() {
@@ -1079,6 +1262,8 @@ private:
         }
         local_map_pub_->publish(m);
 =======
+=======
+>>>>>>> jetson
     // ── CBF zone visualization ────────────────────────────────────────────────
     // Runs at 10Hz independently of control loop.
     // Shows all three safety zones for each detected obstacle:
@@ -1171,7 +1356,10 @@ private:
         }
 
         cbf_viz_pub_->publish(arr);
+<<<<<<< HEAD
 >>>>>>> 1e701e5 (obstacle avoidance tuned)
+=======
+>>>>>>> jetson
     }
 };
 

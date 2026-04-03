@@ -10,7 +10,7 @@ from difflib import SequenceMatcher
 # Configuration
 # ----------------------------
 
-CAMERA_ID = 0
+CAMERA_ID = 2
 DISPLAY_W = 1280
 DISPLAY_H = 720
 UPDATE_INTERVAL = 1.0
