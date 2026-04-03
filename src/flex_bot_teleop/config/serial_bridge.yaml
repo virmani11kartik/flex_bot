@@ -1,4 +1,4 @@
 serial_bridge_node:
   ros__parameters:
-    serial_port: "/dev/ttyUSB0"   # change to /dev/ttyACM0 if ESP32 shows up there
+    serial_port: "/dev/ttyACM0"   # change to /dev/ttyACM0 if ESP32 shows up there
     baud_rate: 115200

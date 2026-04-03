@@ -21,8 +21,8 @@ teleop_node:
     ema_tau_s: 0.05
 
     # ── Linear actuator ──────────────────────────────
-    btn_act_extend:  11
-    btn_act_retract: 12
+    btn_act_extend:  4
+    btn_act_retract: 5
 
     # ── Stepper direction ────────────────────────────
     btn_step_cw:  1
