@@ -82,7 +82,7 @@ struct UdpImuPacket {
 class FlexBotUdpBridge : public rclcpp::Node {
 public:
   FlexBotUdpBridge() : Node("flex_bot_udp_bridge") {
-    imx7_ip_     = declare_parameter<std::string>("imx7_ip", "192.168.1.50");
+    imx7_ip_     = declare_parameter<std::string>("imx7_ip", "192.168.0.2");
     cmd_port_    = declare_parameter<int>("cmd_port", 5001);
     fb_port_     = declare_parameter<int>("fb_port", 5002);
 
@@ -97,7 +97,7 @@ public:
     cmds_are_radps_ = declare_parameter<bool>("cmds_are_radps", true);
 
     // If true: publish feedback as rad/s topics (optional convenience)
-    publish_feedback_radps_ = declare_parameter<bool>("publish_feedback_radps", true);
+    publish_feedback_radps_ = declare_parameter<bool>("publish_feedback_radps", false);
 
     auto qos = rclcpp::QoS(10).best_effort();
 

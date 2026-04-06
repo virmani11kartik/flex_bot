@@ -27,7 +27,7 @@ def generate_launch_description():
     )
 
     slam = IncludeLaunchDescription(
-        PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "slam_async.launch.py"))
+        PythonLaunchDescriptionSource(os.path.join(pkg_share, "launch", "slam_sync.launch.py"))
     )
 
     # rviz = Node(

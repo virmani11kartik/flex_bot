@@ -1,8 +1,9 @@
 #pragma once
-
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float64.hpp>
 #include <nav_msgs/msg/odometry.hpp>
+#include <tf2_ros/transform_broadcaster.h>
+#include <memory>
 
 class WheelOdomNode : public rclcpp::Node
 {
@@ -35,7 +36,6 @@ private:
   std::string frame_id_;
   std::string child_frame_id_;
   std::string odom_topic_;
-
   double wheel_radius_m_;             // r
   double wheel_base_m_;               // b
   double bias_correction_factor_;
@@ -46,7 +46,6 @@ private:
   double alpha3_;
   double alpha4_;
   double encoder_noise_per_tick_;
-
   double publish_rate_hz_;
 
   // RPM subscriptions
@@ -77,4 +76,8 @@ private:
 
   // Publisher
   rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr pub_odom_;
+
+  // TF broadcasting (ADDED)
+  bool publish_tf_;
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 };

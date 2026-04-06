@@ -1,13 +1,15 @@
 #include "flex_bot_odometry/wheel_odom_node.hpp"
-
 #include <tf2/LinearMath/Quaternion.h>
 #include <cmath>
 #include <algorithm>
+#include <tf2_ros/transform_broadcaster.h>
+#include <geometry_msgs/msg/transform_stamped.hpp>
+
 
 WheelOdomNode::WheelOdomNode()
 : Node("wheel_odom_node"),
-  wheel_radius_m_(0.0762),
-  wheel_base_m_(0.297),
+  wheel_radius_m_(0.15301),
+  wheel_base_m_(0.5000),
   bias_correction_factor_(1.0),
   alpha1_(0.1),
   alpha2_(0.01),
@@ -55,8 +57,13 @@ WheelOdomNode::WheelOdomNode()
   // Publisher
   pub_odom_ = create_publisher<nav_msgs::msg::Odometry>(odom_topic_, 10);
 
+  publish_tf_ = declare_parameter<bool>("publish_tf", false);
+  tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
+
   // Subscriptions
-  auto qos = rclcpp::QoS(rclcpp::KeepLast(20)).reliable();
+  // auto qos = rclcpp::QoS(rclcpp::KeepLast(20)).reliable();
+  auto qos = rclcpp::QoS(rclcpp::KeepLast(20)).best_effort();
+
 
   sub_left_rpm_ = create_subscription<std_msgs::msg::Float64>(
     "/left_wheel/vel_rpm", qos,
@@ -191,12 +198,32 @@ void WheelOdomNode::publishOdom(const rclcpp::Time& stamp, double v, double wz)
   odom.pose.covariance[31] = syth;
   odom.pose.covariance[35] = sthth;
 
-  // Twist covariance (start conservative)
+  // Twist covariance 
   for (int i = 0; i < 36; ++i) odom.twist.covariance[i] = 0.0;
-  odom.twist.covariance[0]  = 0.05;  // vx
-  odom.twist.covariance[35] = 0.10;  // wz
+  odom.twist.covariance[0]  = 0.0005;  // vx
+  odom.twist.covariance[35] = 0.0010;  // wz
 
   pub_odom_->publish(odom);
+
+  if (publish_tf_) {
+    geometry_msgs::msg::TransformStamped t;
+    t.header.stamp = stamp;  // FIXED: changed from 'now' to 'stamp'
+    t.header.frame_id = frame_id_;        // "odom"
+    t.child_frame_id = child_frame_id_;   // "base_link"
+
+    t.transform.translation.x = x_;
+    t.transform.translation.y = y_;
+    t.transform.translation.z = 0.0;
+
+    tf2::Quaternion q_tf;  // FIXED: renamed to avoid shadowing
+    q_tf.setRPY(0.0, 0.0, theta_);
+    t.transform.rotation.x = q_tf.x();
+    t.transform.rotation.y = q_tf.y();
+    t.transform.rotation.z = q_tf.z();
+    t.transform.rotation.w = q_tf.w();
+
+    tf_broadcaster_->sendTransform(t);
+  }
 }
 
 void WheelOdomNode::onTimer()

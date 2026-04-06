@@ -28,3 +28,7 @@ Thumbs.db
 .vscode/
 .idea/
 *.swp
+
+# pycache stuff
+
+./src/sorting_trigger_bridge/sorting_trigger_bridge/__pycache__/
